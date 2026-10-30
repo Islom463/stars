@@ -201,8 +201,8 @@ async def earn(m: Message, state: FSMContext):
         "💵 <b>Pul ishlash</b>\n\n"
         f"Do'stlaringizni taklif qiling va har biri uchun <b>{fmt(REF_BONUS)} so'm</b> oling!\n\n"
         f"🔗 Sizning havolangiz:\n<code>https://t.me/{me.username}?start={m.from_user.id}</code>\n\n"
-        f"👥 Taklif qilinganlar: <b>{u['ref_count']}</b> ta\n"
-        f"💰 Ishlagan pulingiz: <b>{fmt(u['ref_earned'])} so'm</b>"
+        f"👥 Taklif qilinganlar: <b>{u.get('ref_count', 0)}</b> ta\n"
+        f"💰 Ishlagan pulingiz: <b>{fmt(u.get('ref_earned', 0))} so'm</b>"
     )
 
 
@@ -210,13 +210,16 @@ async def earn(m: Message, state: FSMContext):
 async def account(m: Message, state: FSMContext):
     await state.clear()
     u = one("SELECT * FROM users WHERE id=?", (m.from_user.id,))
+if not u:
+    u = {"balance": 0, "ref_count": 0}
+
     cnt = one("SELECT COUNT(*) c FROM orders WHERE user_id=? AND status='done'", (m.from_user.id,))["c"]
     await m.answer(
         "💳 <b>Hisobim</b>\n\n"
         f"🆔 ID: <code>{m.from_user.id}</code>\n"
-        f"💰 Balans: <b>{fmt(u['balance'])} so'm</b>\n"
+        f"💰 Balans: <b>{fmt(u.get('balance', 0))} so'm</b>\n"
         f"🛒 Bajarilgan buyurtmalar: <b>{cnt}</b>\n"
-        f"👥 Takliflar: <b>{u['ref_count']}</b>"
+        f"👥 Takliflar: <b>{u.get('ref_count', 0)}</b>"
     )
 
 
