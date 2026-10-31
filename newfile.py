@@ -57,7 +57,7 @@ threading.Thread(target=self_ping, daemon=True).start()
 # ===================== SOZLAMALAR =====================
 BOT_TOKEN = "9278626308:AAGIVO-g2F6cz2OnQX4vaWx6jGeDkwO8O44"
 ADMIN_IDS = [8099636943]
-ADMIN_USERNAME = "@wezzcs"
+ADMIN_USERNAME = "wezzcs"  # @ belgisiz yozilsa tugma uchun qulay
 CARD_NUMBER = "5614681853951071"
 CARD_OWNER = "Panjiyev Muhammadali"
 REF_BONUS = 50
@@ -65,11 +65,14 @@ TOPUP_TIMEOUT = 5 * 60
 MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
 
+# Guruh va Kanal havolalari (O'zingiznikiga o'zgartiring)
+GROUP_LINK = "https://t.me/sizning_guruhingiz"  # /join buyrug'i yo'naltiradigan guruh havolasi
+
 # UzSMM Panel API Sozlamalari
 SMM_API_URL = "https://uzsmmpanel.pp.ua/api/v2"
 SMM_API_KEY = "4abab7a5f4119fb078df3f971e6bb765"
 
-# SMM Xizmatlari va Service ID lari (Saytdagi ID larga moslangan)
+# SMM Xizmatlari va Service ID lari
 SMM_SERVICES = {
     "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3000, "min": 10, "service_id": 4217},
     "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 200, "min": 100, "service_id": 4},
@@ -202,8 +205,7 @@ def smm_services_kb():
     rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="order_back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
-def user_link(u) -> str:
-    return f'<a href="tg://user?id={u.id}">{u.full_name}</a> (<code>{u.id}</code>)'
+# ===================== YANGI VA TAHRIRLANGAN KOMANDALAR =====================
 
 @dp.message(CommandStart())
 async def start(m: Message, command: CommandObject, state: FSMContext):
@@ -227,6 +229,39 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
             except Exception:
                 pass
     await m.answer("👋 Xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=main_menu())
+
+
+@dp.message(Command("help"))
+async def help_cmd(m: Message, state: FSMContext):
+    await state.clear()
+    # Admin lichkasiga o'tish uchun tugma
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", url=f"https://t.me/{ADMIN_USERNAME}")]
+        ]
+    )
+    await m.answer(
+        "🤖 <b>Yordam bo'limi</b>\n\n"
+        "Botdan foydalanishda muammo yuzaga kelsa yoki savollaringiz bo'lsa, quyidagi tugma orqali admin bilan bog'lanishingiz mumkin:",
+        reply_markup=keyboard
+    )
+
+
+@dp.message(Command("join"))
+async def join_cmd(m: Message, state: FSMContext):
+    await state.clear()
+    # Guruhga kirish uchun tugma
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👥 Guruhga qo'shilish 🚀", url=GROUP_LINK)]
+        ]
+    )
+    await m.answer(
+        "💬 Bizning rasmiy guruhimizga qo'shiling va boshqalar bilan muloqot qiling:",
+        reply_markup=keyboard
+    )
+
+# ===========================================================================
 
 @dp.callback_query(F.data == "check_sub")
 async def process_check_sub(c: CallbackQuery):
@@ -301,9 +336,9 @@ async def account(m: Message, state: FSMContext):
     await m.answer(f"💳 <b>Hisobim</b>\n\n🆔 ID: <code>{uid}</code>\n💰 Balans: <b>{fmt(balance)} so'm</b>\n🛒 Bajarilgan: {cnt}")
 
 @dp.message(F.text == "☎️ Yordam")
-async def help_(m: Message, state: FSMContext):
-    await state.clear()
-    await m.answer(f"☎️ Admin: {ADMIN_USERNAME}")
+async def help_text_btn(m: Message, state: FSMContext):
+    # Tugmadagi "Yordam" bosilganda ham /help funksiyasini ishlatamiz
+    await help_cmd(m, state)
 
 @dp.message(F.text == "📄 Qo'llanma")
 async def guide(m: Message, state: FSMContext):
@@ -466,7 +501,6 @@ async def smm_service_selected(c: CallbackQuery, state: FSMContext):
     await c.message.edit_text(f"🚀 <b>{svc_info['name']}</b>\n\n🔗 Havolani (link) yuboring:")
     await c.answer()
 
-# --- YANGILANGAN HAVOLANI (SILKANI) TEKSHIRISH QISMI ---
 @dp.message(SmmOrderS.target, F.text)
 async def smm_target_received(m: Message, state: FSMContext):
     link = m.text.strip()
@@ -501,7 +535,6 @@ async def smm_target_received(m: Message, state: FSMContext):
     await state.set_state(SmmOrderS.quantity)
     await m.answer(f"🔢 Soni qancha bo'lsin? (Minimal: {data['min_qty']} ta)")
 
-
 @dp.message(SmmOrderS.quantity, F.text)
 async def smm_quantity_received(m: Message, state: FSMContext):
     if not m.text.isdigit():
@@ -520,10 +553,7 @@ async def smm_quantity_received(m: Message, state: FSMContext):
         await state.clear()
         return await m.answer(f"❗ Balans yetarli emas. Kerak: {fmt(total_price)} so'm")
     
-    # Balansdan yechamiz
     run("UPDATE users SET balance=balance-? WHERE id=?", (total_price, uid))
-    
-    # UzSMM Panel API ga so'rov yuboramiz
     api_res = await send_smm_order(data["service_id"], data["target"], qty)
     
     status = "processing"
