@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x)
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Havola tekshiruvi bilan
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -72,7 +72,7 @@ SMM_API_KEY = "4abab7a5f4119fb078df3f971e6bb765"
 # SMM Xizmatlari va Service ID lari (Saytdagi ID larga moslangan)
 SMM_SERVICES = {
     "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3000, "min": 10, "service_id": 4217},
-    "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 200, "min": 100, "service_id": 4}, # O'zingizga mos ID bilan o'zgartirishingiz mumkin
+    "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 200, "min": 100, "service_id": 4},
     "smm_ig_subs": {"name": "👥 IG Obunachilar", "price_per_1000": 15000, "min": 50, "service_id": 5},
     "smm_tg_views": {"name": "👁 TG Post ko'rish", "price_per_1000": 500, "min": 100, "service_id": 1},
     "smm_tg_reactions": {"name": "🔥 TG Reaksiyalar", "price_per_1000": 1000, "min": 50, "service_id": 2},
@@ -466,12 +466,41 @@ async def smm_service_selected(c: CallbackQuery, state: FSMContext):
     await c.message.edit_text(f"🚀 <b>{svc_info['name']}</b>\n\n🔗 Havolani (link) yuboring:")
     await c.answer()
 
+# --- YANGILANGAN HAVOLANI (SILKANI) TEKSHIRISH QISMI ---
 @dp.message(SmmOrderS.target, F.text)
 async def smm_target_received(m: Message, state: FSMContext):
-    await state.update_data(target=m.text.strip())
-    await state.set_state(SmmOrderS.quantity)
+    link = m.text.strip()
     data = await state.get_data()
+    svc_key = data["smm_key"]
+    
+    is_instagram = "instagram.com" in link or "instagr.am" in link
+    is_telegram = "t.me/" in link or link.startswith("@")
+    
+    if "tg_" in svc_key and not is_telegram:
+        return await m.answer(
+            "❌ <b>Link yoki silka xato!</b>\n\n"
+            "Iltimos, telegram linkini to'g'ri kiriting.",
+            parse_mode=ParseMode.HTML
+        )
+    
+    if "ig_" in svc_key and not is_instagram:
+        return await m.answer(
+            "❌ <b>Link yoki silka xato!</b>\n\n"
+            "Iltimos, instagram linkini to'g'ri kiriting.",
+            parse_mode=ParseMode.HTML
+        )
+        
+    if not (link.startswith("http://") or link.startswith("https://") or link.startswith("@")):
+        return await m.answer(
+            "❌ <b>Link yoki silka xato!</b>\n\n"
+            "Iltimos, instagram yoki telegram linkini to'g'ri kiriting.",
+            parse_mode=ParseMode.HTML
+        )
+
+    await state.update_data(target=link)
+    await state.set_state(SmmOrderS.quantity)
     await m.answer(f"🔢 Soni qancha bo'lsin? (Minimal: {data['min_qty']} ta)")
+
 
 @dp.message(SmmOrderS.quantity, F.text)
 async def smm_quantity_received(m: Message, state: FSMContext):
