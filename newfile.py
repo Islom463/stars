@@ -4,6 +4,8 @@ Telegram Stars sotish boti (aiogram 3.x) - Tuzatilgan versiya
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
+import urllib.request
+import time
 
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -16,7 +18,21 @@ def run_server():
     server = HTTPServer(('0.0.0.0', port), SimpleHandler)
     server.serve_forever()
 
+# Serverni alohida oqimda ishga tushiramiz
 threading.Thread(target=run_server, daemon=True).start()
+
+# O'zini o'zi ping qilish (Render uxlab qolmasligi uchun)
+def self_ping():
+    while True:
+        time.sleep(300) # Har 5 daqiqada
+        try:
+            app_url = os.environ.get("RENDER_EXTERNAL_URL")
+            if app_url:
+                urllib.request.urlopen(app_url)
+        except Exception:
+            pass
+
+threading.Thread(target=self_ping, daemon=True).start()
 
 import asyncio
 import logging
