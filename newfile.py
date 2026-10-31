@@ -1,5 +1,5 @@
 """
-Telegram Stars sotish boti (aiogram 3.x) - Tuzatilgan versiya
+Telegram Stars sotish boti (aiogram 3.x) - Tuzatilgan va obunali versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -42,7 +42,7 @@ import time
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
+from aiogram.enums import ParseMode, ChatMemberStatus
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -71,6 +71,9 @@ MAX_TOPUP = 5_000_000
 MIN_STARS = 50
 MAX_STARS = 10_000
 PACKAGES = [50, 100, 250, 300, 350, 500, 750, 1000, 1500, 2500]
+
+# --- MAJBURIY OBUNA UCHUN KANAL ---
+CHANNEL_ID = "@panjiyev_24"  # Sizning kanalingiz username'i
 # =====================================================================
 
 logging.basicConfig(level=logging.INFO)
@@ -115,6 +118,17 @@ def many(sql, args=()):
 
 def fmt(n: int) -> str:
     return f"{n:,}"
+
+
+# --- OBUNANI TEKSHIRISH FUNKSIYASI ---
+async def check_user_subscription(user_id: int, bot: Bot) -> bool:
+    try:
+        member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
+        if member.status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
+            return True
+        return False
+    except Exception:
+        return False
 
 
 # ---------------------------- HOLATLAR ----------------------------
@@ -164,11 +178,26 @@ def user_link(u) -> str:
     return f'<a href="tg://user?id={u.id}">{u.full_name}</a> (<code>{u.id}</code>)'
 
 
-# ---------------------------- START ----------------------------
+# ---------------------------- START VA OBUNA ----------------------------
 @dp.message(CommandStart())
 async def start(m: Message, command: CommandObject, state: FSMContext):
     await state.clear()
     uid = m.from_user.id
+    
+    # Majburiy obunani tekshirish
+    is_subscribed = await check_user_subscription(uid, bot)
+    if not is_subscribed:
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url=f"https://t.me/{CHANNEL_ID.lstrip('@')}")],
+                [InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_sub")]
+            ]
+        )
+        return await m.answer(
+            "⚠️ Botdan foydalanish uchun avval quyidagi kanalimizga obuna bo'ling:",
+            reply_markup=keyboard
+        )
+
     if not one("SELECT 1 FROM users WHERE id=?", (uid,)):
         ref = int(command.args) if command.args and command.args.isdigit() else None
         if ref == uid or (ref and not one("SELECT 1 FROM users WHERE id=?", (ref,))):
@@ -195,6 +224,17 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
         "Kerakli bo'limni tanlang:",
         reply_markup=main_menu(),
     )
+
+
+@dp.callback_query(F.data == "check_sub")
+async def process_check_sub(c: CallbackQuery):
+    user_id = c.from_user.id
+    is_subscribed = await check_user_subscription(user_id, bot)
+    
+    if is_subscribed:
+        await c.message.edit_text("Rahmat! Obuna tasdiqlandi. Qaytadan /start buyrug'ini bosing.")
+    else:
+        await c.answer("Siz hali kanalga obuna bo'lmadingiz!", show_alert=True)
 
 
 # ---------------------------- MENYU ----------------------------
@@ -230,29 +270,43 @@ async def earn(m: Message, state: FSMContext):
     await state.clear()
     me = await bot.get_me()
     u = one("SELECT * FROM users WHERE id=?", (m.from_user.id,))
+    ref_count = u['ref_count'] if u and 'ref_count' in u.keys() else 0
+    ref_earned = u['ref_earned'] if u and 'ref_earned' in u.keys() else 0
     await m.answer(
         "💵 <b>Pul ishlash</b>\n\n"
         f"Do'stlaringizni taklif qiling va har biri uchun <b>{fmt(REF_BONUS)} so'm</b> oling!\n\n"
         f"🔗 Sizning havolangiz:\n<code>https://t.me/{me.username}?start={m.from_user.id}</code>\n\n"
-        f"👥 Taklif qilinganlar: <b>{u.get('ref_count', 0)}</b> ta\n"
-        f"💰 Ishlagan pulingiz: <b>{fmt(u.get('ref_earned', 0))} so'm</b>"
+        f"👥 Taklif qilinganlar: <b>{ref_count}</b> ta\n"
+        f"💰 Ishlagan pulingiz: <b>{fmt(ref_earned)} so'm</b>"
     )
 
 
 @dp.message(F.text == "💳 Hisobim")
 async def account(m: Message, state: FSMContext):
     await state.clear()
-    u = one("SELECT * FROM users WHERE id=?", (m.from_user.id,))
+    uid = m.from_user.id
+    u = one("SELECT * FROM users WHERE id=?", (uid,))
+    
+    # Agar foydalanuvchi bazada topilmasa, yaratib qo'yamiz
     if not u:
-        u = {"balance": 0, "ref_count": 0}
+        run(
+            "INSERT INTO users(id,name,joined) VALUES(?,?,?)",
+            (uid, m.from_user.full_name, int(time.time())),
+        )
+        u = one("SELECT * FROM users WHERE id=?", (uid,))
 
-    cnt = one("SELECT COUNT(*) c FROM orders WHERE user_id=? AND status='done'", (m.from_user.id,))["c"]
+    balance = u['balance'] if 'balance' in u.keys() else 0
+    ref_count = u['ref_count'] if 'ref_count' in u.keys() else 0
+
+    cnt_res = one("SELECT COUNT(*) c FROM orders WHERE user_id=? AND status='done'", (uid,))
+    cnt = cnt_res["c"] if cnt_res else 0
+
     await m.answer(
         "💳 <b>Hisobim</b>\n\n"
-        f"🆔 ID: <code>{m.from_user.id}</code>\n"
-        f"💰 Balans: <b>{fmt(u.get('balance', 0))} so'm</b>\n"
+        f"🆔 ID: <code>{uid}</code>\n"
+        f"💰 Balans: <b>{fmt(balance)} so'm</b>\n"
         f"🛒 Bajarilgan buyurtmalar: <b>{cnt}</b>\n"
-        f"👥 Takliflar: <b>{u.get('ref_count', 0)}</b>"
+        f"👥 Takliflar: <b>{ref_count}</b>"
     )
 
 
@@ -433,11 +487,12 @@ async def manual(m: Message, state: FSMContext):
 async def ask_target(msg: Message, state: FSMContext, uid: int, stars: int):
     price = stars * PRICE_PER_STAR
     u = one("SELECT balance FROM users WHERE id=?", (uid,))
-    if u["balance"] < price:
+    balance = u['balance'] if u and 'balance' in u.keys() else 0
+    if balance < price:
         await state.clear()
         return await msg.answer(
             f"❗ Hisobingizda mablag' yetarli emas.\n"
-            f"Kerak: <b>{fmt(price)} so'm</b>\nBalans: <b>{fmt(u['balance'])} so'm</b>\n\n"
+            f"Kerak: <b>{fmt(price)} so'm</b>\nBalans: <b>{fmt(balance)} so'm</b>\n\n"
             "«💳 Hisobni to'ldirish» orqali balansni to'ldiring."
         )
     await state.set_state(OrderS.target)
@@ -456,14 +511,16 @@ async def order_target(m: Message, state: FSMContext):
     target = "@" + target.lstrip("@")
     stars = (await state.get_data())["stars"]
     price = stars * PRICE_PER_STAR
-    u = one("SELECT balance FROM users WHERE id=?", (m.from_user.id,))
+    uid = m.from_user.id
+    u = one("SELECT balance FROM users WHERE id=?", (uid,))
     await state.clear()
-    if u["balance"] < price:
+    balance = u['balance'] if u and 'balance' in u.keys() else 0
+    if balance < price:
         return await m.answer("❗ Hisobingizda mablag' yetarli emas.")
-    run("UPDATE users SET balance=balance-? WHERE id=?", (price, m.from_user.id))
+    run("UPDATE users SET balance=balance-? WHERE id=?", (price, uid))
     oid = run(
         "INSERT INTO orders(user_id,stars,price,target,status,created) VALUES(?,?,?,?,?,?)",
-        (m.from_user.id, stars, price, target, "pending", int(time.time())),
+        (uid, stars, price, target, "pending", int(time.time())),
     )
     await m.answer(
         f"✅ Buyurtma #{oid} qabul qilindi!\n"
@@ -494,7 +551,7 @@ async def order_admin(c: CallbackQuery):
     action, oid = c.data.split(":")
     o = one("SELECT * FROM orders WHERE id=?", (int(oid),))
     if not o or o["status"] != "pending":
-        return await c.answer("Bu buyurtma allaqachon ko'rib chiqilgan.", show_alert=True)
+        return await c.answer("Bu so'rov allaqachon ko'rib chiqilgan.", show_alert=True)
     if action == "ook":
         run("UPDATE orders SET status='done' WHERE id=?", (o["id"],))
         await c.message.edit_text(c.message.html_text + "\n\n✅ <b>Bajarildi</b>")
@@ -527,7 +584,6 @@ async def stats(m: Message):
 
 @dp.message(Command("add"), F.from_user.id.in_(ADMIN_IDS))
 async def add_balance(m: Message, command: CommandObject):
-    """/add USER_ID SUMMA  (manfiy son bilan ayirish mumkin)"""
     try:
         uid, amount = command.args.split()
         run("UPDATE users SET balance=balance+? WHERE id=?", (int(amount), int(uid)))
