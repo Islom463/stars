@@ -210,7 +210,7 @@ async def earn(m: Message, state: FSMContext):
 async def account(m: Message, state: FSMContext):
     await state.clear()
     u = one("SELECT * FROM users WHERE id=?", (m.from_user.id,))
-if not u:
+    if not u:
     u = {"balance": 0, "ref_count": 0}
 
     cnt = one("SELECT COUNT(*) c FROM orders WHERE user_id=? AND status='done'", (m.from_user.id,))["c"]
