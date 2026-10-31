@@ -66,7 +66,7 @@ MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
 
 # Guruh va Kanal havolalari (O'zingiznikiga o'zgartiring)
-GROUP_LINK = "https://t.me/@apex_server_b0t"  # /join buyrug'i yo'naltiradigan guruh havolasi
+GROUP_LINK = "@apex_server_b0t"  # /join buyrug'i yo'naltiradigan guruh havolasi
 
 # UzSMM Panel API Sozlamalari
 SMM_API_URL = "https://uzsmmpanel.pp.ua/api/v2"
