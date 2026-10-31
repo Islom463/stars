@@ -1,5 +1,5 @@
 """
-Telegram Stars sotish boti (aiogram 3.x) - Ko'p kanalli obuna versiyasi
+Telegram Stars va Gif sotish boti (aiogram 3.x) - To'liq yangilangan versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -62,16 +62,43 @@ ADMIN_IDS = [8099636943]  # Admin Telegram ID(lar)i
 ADMIN_USERNAME = "@wezzcs"  # "Yordam" bo'limida ko'rinadi
 CARD_NUMBER = "5614681853951071"  # Sizning karta raqamingiz
 CARD_OWNER = "Panjiyev Muhammadali"  # Karta egasi
-PRICE_PER_STAR = 215  # 1 ta ⭐ narxi (so'm)
 REF_BONUS = 50  # Har bir taklif qilingan do'st uchun (so'm)
 TOPUP_TIMEOUT = 5 * 60  # To'lovni tasdiqlash vaqti (soniya)
 MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
+
+# Yangi Stars narxlari paketlari (miqdor va so'm)
+STARS_PACKAGES = [
+    (50, 11000),
+    (100, 22000),
+    (250, 54000),
+    (300, 65000),
+    (350, 75500),
+    (500, 108000),
+    (750, 161500),
+    (1000, 215500),
+    (1500, 323000),
+    (2500, 538000),
+]
 MIN_STARS = 50
 MAX_STARS = 10_000
-PACKAGES = [50, 100, 250, 300, 350, 500, 750, 1000, 1500, 2500]
 
-# --- MAJBURIY OBUNA UCHUN KANALLAR (IKKALA KANAL QO'SHILDI) ---
+# Gif paketlari va narxlari
+GIF_PACKAGES = [
+    ("🐻", 5000),
+    ("💝", 5000),
+    ("🎁", 7000),
+    ("🌹", 7000),
+    ("🎂", 10000),
+    ("💐", 10000),
+    ("🚀", 10000),
+    ("🏆", 22000),
+    ("💍", 22000),
+    ("💎", 22000),
+    ("🍾", 10000),
+]
+
+# --- MAJBURIY OBUNA UCHUN KANALLAR ---
 CHANNELS = ["@panjiyev_24", "@apex_server_b0t"]
 # =======================================================
 
@@ -81,7 +108,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
-# ---------------------------- BAZA ----------------------------
+# ---------------------------- BAZA (Tuzatilgan) ----------------------------
 db = sqlite3.connect("bot.db", check_same_thread=False)
 db.row_factory = sqlite3.Row
 db.executescript(
@@ -94,7 +121,7 @@ CREATE TABLE IF NOT EXISTS topups(
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, amount INTEGER,
     status TEXT, created INTEGER, expires INTEGER);
 CREATE TABLE IF NOT EXISTS orders(
-    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, stars INTEGER,
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, item_type TEXT, item_name TEXT,
     price INTEGER, target TEXT, status TEXT, created INTEGER);
 """
 )
@@ -155,14 +182,23 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 
-def packages_kb():
+def order_type_kb():
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⭐ Stars olish", callback_data="order:stars")],
+            [InlineKeyboardButton(text="🎁 Gif olish", callback_data="order:gifs")],
+        ]
+    )
+
+
+def stars_packages_kb():
     rows = [[InlineKeyboardButton(text="✍️ Qo'lda hisoblash", callback_data="buy:manual")]]
     row = []
-    for s in PACKAGES:
+    for stars, price in STARS_PACKAGES:
         row.append(
             InlineKeyboardButton(
-                text=f"{s} ⭐️ ({fmt(s * PRICE_PER_STAR)} so'm)",
-                callback_data=f"buy:{s}",
+                text=f"{stars} ⭐️ ({fmt(price)} so'm)",
+                callback_data=f"star:{stars}:{price}",
             )
         )
         if len(row) == 2:
@@ -170,7 +206,26 @@ def packages_kb():
             row = []
     if row:
         rows.append(row)
-    rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="back")])
+    rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="order_back")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def gifs_packages_kb():
+    rows = []
+    row = []
+    for g_icon, g_price in GIF_PACKAGES:
+        row.append(
+            InlineKeyboardButton(
+                text=f"{g_icon} ({fmt(g_price)} so'm)",
+                callback_data=f"gif:{g_icon}:{g_price}",
+            )
+        )
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="order_back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -184,7 +239,6 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
     await state.clear()
     uid = m.from_user.id
     
-    # Majburiy obunani tekshirish (barcha kanallar uchun)
     is_subscribed = await check_user_subscription(uid, bot)
     if not is_subscribed:
         keyboard_buttons = []
@@ -200,13 +254,14 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
             reply_markup=keyboard
         )
 
+    # Foydalanuvchi bazada yo'q bo'lsa qo'shamiz
     if not one("SELECT 1 FROM users WHERE id=?", (uid,)):
         ref = int(command.args) if command.args and command.args.isdigit() else None
         if ref == uid or (ref and not one("SELECT 1 FROM users WHERE id=?", (ref,))):
             ref = None
         run(
-            "INSERT INTO users(id,name,referrer,joined) VALUES(?,?,?,?)",
-            (uid, m.from_user.full_name, ref, int(time.time())),
+            "INSERT INTO users(id,name,balance,referrer,joined) VALUES(?,?,?,?,?)",
+            (uid, m.from_user.full_name, 0, ref, int(time.time())),
         )
         if ref:
             run(
@@ -222,7 +277,7 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
             except Exception:
                 pass
     await m.answer(
-        "👋 Xush kelibsiz! Telegram ⭐ Stars xarid qilish botiga xush kelibsiz.\n"
+        "👋 Xush kelibsiz! Telegram ⭐ Stars va 🎁 Gif xarid qilish botiga xush kelibsiz.\n"
         "Kerakli bo'limni tanlang:",
         reply_markup=main_menu(),
     )
@@ -244,9 +299,37 @@ async def process_check_sub(c: CallbackQuery):
 async def order_menu(m: Message, state: FSMContext):
     await state.clear()
     await m.answer(
-        'Tanlang yoki "✍️ Qo\'lda hisoblash" tugmasini bosing:',
+        "🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:",
+        reply_markup=order_type_kb(),
+    )
+
+
+@dp.callback_query(F.data == "order_back")
+async def order_back_cb(c: CallbackQuery, state: FSMContext):
+    await state.clear()
+    await c.message.edit_text(
+        "🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:",
+        reply_markup=order_type_kb(),
+    )
+    await c.answer()
+
+
+@dp.callback_query(F.data == "order:stars")
+async def order_stars_cb(c: CallbackQuery, state: FSMContext):
+    await c.message.edit_text(
+        'Stars miqdorini tanlang yoki "✍️ Qo\'lda hisoblash" tugmasini bosing:',
         reply_markup=packages_kb(),
     )
+    await c.answer()
+
+
+@dp.callback_query(F.data == "order:gifs")
+async def order_gifs_cb(c: CallbackQuery, state: FSMContext):
+    await c.message.edit_text(
+        "🎁 Kerakli gifni tanlang:",
+        reply_markup=gifs_packages_kb(),
+    )
+    await c.answer()
 
 
 @dp.message(F.text == "🛒 Buyurtmalar")
@@ -260,8 +343,9 @@ async def my_orders(m: Message, state: FSMContext):
     icons = {"pending": "⏳ Kutilmoqda", "done": "✅ Bajarildi", "cancelled": "❌ Bekor qilindi"}
     text = "🛒 <b>Oxirgi buyurtmalaringiz:</b>\n\n"
     for r in rows:
+        item_desc = f"{r['item_name']}" if r['item_type'] == 'gif' else f"{r['item_name']} ⭐"
         text += (
-            f"#{r['id']} — {r['stars']} ⭐ → {r['target']}\n"
+            f"#{r['id']} — {item_desc} → {r['target']}\n"
             f"{fmt(r['price'])} so'm | {icons.get(r['status'], r['status'])}\n\n"
         )
     await m.answer(text)
@@ -291,12 +375,12 @@ async def account(m: Message, state: FSMContext):
     
     if not u:
         run(
-            "INSERT INTO users(id,name,joined) VALUES(?,?,?)",
-            (uid, m.from_user.full_name, int(time.time())),
+            "INSERT INTO users(id,name,balance,joined) VALUES(?,?,?,?)",
+            (uid, m.from_user.full_name, 0, int(time.time())),
         )
         u = one("SELECT * FROM users WHERE id=?", (uid,))
 
-    balance = u['balance'] if 'balance' in u.keys() else 0
+    balance = u['balance'] if u and 'balance' in u.keys() else 0
     ref_count = u['ref_count'] if 'ref_count' in u.keys() else 0
 
     cnt_res = one("SELECT COUNT(*) c FROM orders WHERE user_id=? AND status='done'", (uid,))
@@ -323,8 +407,8 @@ async def guide(m: Message, state: FSMContext):
     await m.answer(
         "📄 <b>Qo'llanma</b>\n\n"
         "1️⃣ «💳 Hisobni to'ldirish» orqali balansni to'ldiring.\n"
-        "2️⃣ «🛍 Buyurtma berish» da ⭐ miqdorini tanlang.\n"
-        "3️⃣ ⭐ yuboriladigan @username ni kiriting.\n"
+        "2️⃣ «🛍 Buyurtma berish» orqali Stars yoki Gif tanlang.\n"
+        "3️⃣ Qabul qiluvchi @username ni kiriting.\n"
         "4️⃣ Admin buyurtmani bajaradi va sizga xabar keladi.\n\n"
         f"💵 Do'st taklif qilib har biri uchun {fmt(REF_BONUS)} so'm ishlang."
     )
@@ -439,7 +523,13 @@ async def topup_admin(c: CallbackQuery):
         return await c.answer("Bu so'rov allaqachon ko'rib chiqilgan.", show_alert=True)
     if action == "tok":
         run("UPDATE topups SET status='approved' WHERE id=?", (t["id"],))
-        run("UPDATE users SET balance=balance+? WHERE id=?", (t["amount"], t["user_id"]))
+        # Balansga pulni to'g'ri qo'shish va user bazada yo'q bo'lsa xavfsizlik
+        user_check = one("SELECT 1 FROM users WHERE id=?", (t["user_id"],))
+        if not user_check:
+            run("INSERT INTO users(id,name,balance,joined) VALUES(?,?,?,?)", (t["user_id"], "User", t["amount"], int(time.time())))
+        else:
+            run("UPDATE users SET balance=balance+? WHERE id=?", (t["amount"], t["user_id"]))
+            
         await c.message.edit_text(c.message.html_text + "\n\n✅ <b>Tasdiqlandi</b>")
         await bot.send_message(
             t["user_id"],
@@ -456,37 +546,45 @@ async def topup_admin(c: CallbackQuery):
     await c.answer()
 
 
-# ---------------------------- BUYURTMA ----------------------------
-@dp.callback_query(F.data == "back")
-async def back(c: CallbackQuery, state: FSMContext):
-    await state.clear()
-    await c.message.delete()
+# ---------------------------- BUYURTMA QILISH LOGIKASI ----------------------------
+@dp.callback_query(F.data == "buy:manual")
+async def buy_manual(c: CallbackQuery, state: FSMContext):
+    await state.set_state(OrderS.manual)
+    await c.message.answer(
+        f"✍️ Nechta ⭐ kerak? ({MIN_STARS} dan {fmt(MAX_STARS)} gacha raqam yozing)"
+    )
     await c.answer()
 
 
-@dp.callback_query(F.data.startswith("buy:"))
-async def buy(c: CallbackQuery, state: FSMContext):
-    val = c.data.split(":")[1]
-    if val == "manual":
-        await state.set_state(OrderS.manual)
-        await c.message.answer(
-            f"✍️ Nechta ⭐ kerak? ({MIN_STARS} dan {fmt(MAX_STARS)} gacha raqam yozing)"
-        )
-        return await c.answer()
-    await ask_target(c.message, state, c.from_user.id, int(val))
+@dp.callback_query(F.data.startswith("star:"))
+async def buy_star_package(c: CallbackQuery, state: FSMContext):
+    _, stars_str, price_str = c.data.split(":")
+    stars = int(stars_str)
+    price = int(price_str)
+    await ask_target_for_item(c.message, state, c.from_user.id, "star", str(stars), price)
+    await c.answer()
+
+
+@dp.callback_query(F.data.startswith("gif:"))
+async def buy_gif_package(c: CallbackQuery, state: FSMContext):
+    _, g_icon, price_str = c.data.split(":")
+    price = int(price_str)
+    await ask_target_for_item(c.message, state, c.from_user.id, "gif", g_icon, price)
     await c.answer()
 
 
 @dp.message(OrderS.manual, F.text)
-async def manual(m: Message, state: FSMContext):
+async def manual_stars(m: Message, state: FSMContext):
     digits = re.sub(r"\D", "", m.text)
     if not digits or not (MIN_STARS <= int(digits) <= MAX_STARS):
         return await m.answer(f"❗ {MIN_STARS} dan {fmt(MAX_STARS)} gacha son kiriting.")
-    await ask_target(m, state, m.from_user.id, int(digits))
+    stars = int(digits)
+    # Qo'lda yozilganda taxminiy narx hisoblash (masalan 1 ta star ~ 215 so'm yoki o'zingizga mos formula)
+    price = stars * 215 
+    await ask_target_for_item(m, state, m.from_user.id, "star", str(stars), price)
 
 
-async def ask_target(msg: Message, state: FSMContext, uid: int, stars: int):
-    price = stars * PRICE_PER_STAR
+async def ask_target_for_item(msg: Message, state: FSMContext, uid: int, item_type: str, item_name: str, price: int):
     u = one("SELECT balance FROM users WHERE id=?", (uid,))
     balance = u['balance'] if u and 'balance' in u.keys() else 0
     if balance < price:
@@ -497,10 +595,12 @@ async def ask_target(msg: Message, state: FSMContext, uid: int, stars: int):
             "«💳 Hisobni to'ldirish» orqali balansni to'ldiring."
         )
     await state.set_state(OrderS.target)
-    await state.update_data(stars=stars)
+    await state.update_data(item_type=item_type, item_name=item_name, price=price)
+    
+    title = f"{item_name} ⭐" if item_type == 'star' else f"Gif: {item_name}"
     await msg.answer(
-        f"{stars} ⭐ — <b>{fmt(price)} so'm</b>\n\n"
-        "⭐ yuboriladigan akkaunt <b>@username</b> ini yozing:"
+        f"📦 {title} — <b>{fmt(price)} so'm</b>\n\n"
+        "⭐ yoki gif yuboriladigan akkaunt <b>@username</b> ini yozing:"
     )
 
 
@@ -510,24 +610,34 @@ async def order_target(m: Message, state: FSMContext):
     if not re.fullmatch(r"@?[A-Za-z0-9_]{5,32}", target):
         return await m.answer("❗ To'g'ri @username kiriting. Masalan: @username")
     target = "@" + target.lstrip("@")
-    stars = (await state.get_data())["stars"]
-    price = stars * PRICE_PER_STAR
+    
+    data = await state.get_data()
+    item_type = data.get("item_type", "star")
+    item_name = data.get("item_name", "50")
+    price = data.get("price", 0)
+    
     uid = m.from_user.id
     u = one("SELECT balance FROM users WHERE id=?", (uid,))
     await state.clear()
     balance = u['balance'] if u and 'balance' in u.keys() else 0
     if balance < price:
         return await m.answer("❗ Hisobingizda mablag' yetarli emas.")
+    
+    # Pulni balanddan yechib qolish
     run("UPDATE users SET balance=balance-? WHERE id=?", (price, uid))
+    
     oid = run(
-        "INSERT INTO orders(user_id,stars,price,target,status,created) VALUES(?,?,?,?,?,?)",
-        (uid, stars, price, target, "pending", int(time.time())),
+        "INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
+        (uid, item_type, item_name, price, target, "pending", int(time.time())),
     )
+    
+    item_desc = f"{item_name} ⭐" if item_type == 'star' else f"Gif ({item_name})"
     await m.answer(
         f"✅ Buyurtma #{oid} qabul qilindi!\n"
-        f"{stars} ⭐ → {target}\nSumma: <b>{fmt(price)} so'm</b>\n\n"
+        f"{item_desc} → {target}\nSumma: <b>{fmt(price)} so'm</b>\n\n"
         "Admin tez orada bajaradi."
     )
+    
     kb = InlineKeyboardBuilder()
     kb.button(text="✅ Bajarildi", callback_data=f"ook:{oid}")
     kb.button(text="❌ Bekor qilish", callback_data=f"ono:{oid}")
@@ -537,7 +647,7 @@ async def order_target(m: Message, state: FSMContext):
                 a,
                 f"🛍 <b>Yangi buyurtma #{oid}</b>\n\n"
                 f"Foydalanuvchi: {user_link(m.from_user)}\n"
-                f"⭐: <b>{stars}</b>\nQabul qiluvchi: {target}\n"
+                f"Mahsulot: <b>{item_desc}</b>\nQabul qiluvchi: {target}\n"
                 f"Summa: {fmt(price)} so'm",
                 reply_markup=kb.as_markup(),
             )
@@ -553,11 +663,14 @@ async def order_admin(c: CallbackQuery):
     o = one("SELECT * FROM orders WHERE id=?", (int(oid),))
     if not o or o["status"] != "pending":
         return await c.answer("Bu buyurtma allaqachon ko'rib chiqilgan.", show_alert=True)
+    
+    item_desc = f"{o['item_name']} ⭐" if o['item_type'] == 'star' else f"Gif ({o['item_name']})"
+    
     if action == "ook":
         run("UPDATE orders SET status='done' WHERE id=?", (o["id"],))
         await c.message.edit_text(c.message.html_text + "\n\n✅ <b>Bajarildi</b>")
         await bot.send_message(
-            o["user_id"], f"✅ Buyurtma #{o['id']} bajarildi! {o['stars']} ⭐ → {o['target']}"
+            o["user_id"], f"✅ Buyurtma #{o['id']} bajarildi! {item_desc} → {o['target']}"
         )
     else:
         run("UPDATE orders SET status='cancelled' WHERE id=?", (o["id"],))
