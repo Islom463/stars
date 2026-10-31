@@ -1,5 +1,5 @@
 """
-Telegram Stars sotish boti (aiogram 3.x) - Tuzatilgan va obunali versiya
+Telegram Stars sotish boti (aiogram 3.x) - Ko'p kanalli obuna versiyasi
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -38,7 +38,6 @@ import asyncio
 import logging
 import re
 import sqlite3
-import time
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
@@ -57,7 +56,7 @@ from aiogram.types import (
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-# ===================== SOZLAMALAR (O'ZGARTIRING) =====================
+# ===================== SOZLAMALAR =====================
 BOT_TOKEN = "9278626308:AAGIVO-g2F6cz2OnQX4vaWx6jGeDkwO8O44"  # Tokeningiz
 ADMIN_IDS = [8099636943]  # Admin Telegram ID(lar)i
 ADMIN_USERNAME = "@wezzcs"  # "Yordam" bo'limida ko'rinadi
@@ -72,9 +71,9 @@ MIN_STARS = 50
 MAX_STARS = 10_000
 PACKAGES = [50, 100, 250, 300, 350, 500, 750, 1000, 1500, 2500]
 
-# --- MAJBURIY OBUNA UCHUN KANAL ---
-CHANNEL_ID = "@panjiyev_24"  # Sizning kanalingiz username'i
-# =====================================================================
+# --- MAJBURIY OBUNA UCHUN KANALLAR (IKKALA KANAL QO'SHILDI) ---
+CHANNELS = ["@panjiyev_24", "@apex_server_b0t"]
+# =======================================================
 
 logging.basicConfig(level=logging.INFO)
 
@@ -122,13 +121,14 @@ def fmt(n: int) -> str:
 
 # --- OBUNANI TEKSHIRISH FUNKSIYASI ---
 async def check_user_subscription(user_id: int, bot: Bot) -> bool:
-    try:
-        member = await bot.get_chat_member(chat_id=CHANNEL_ID, user_id=user_id)
-        if member.status in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
-            return True
-        return False
-    except Exception:
-        return False
+    for channel in CHANNELS:
+        try:
+            member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
+            if member.status not in [ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR]:
+                return False
+        except Exception:
+            return False
+    return True
 
 
 # ---------------------------- HOLATLAR ----------------------------
@@ -184,17 +184,19 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
     await state.clear()
     uid = m.from_user.id
     
-    # Majburiy obunani tekshirish
+    # Majburiy obunani tekshirish (barcha kanallar uchun)
     is_subscribed = await check_user_subscription(uid, bot)
     if not is_subscribed:
-        keyboard = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="📢 Kanalga obuna bo'lish", url=f"https://t.me/{CHANNEL_ID.lstrip('@')}")],
-                [InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_sub")]
-            ]
-        )
+        keyboard_buttons = []
+        for ch in CHANNELS:
+            clean_ch = ch.lstrip('@')
+            keyboard_buttons.append([InlineKeyboardButton(text=f"📢 {ch} kanaliga obuna bo'lish", url=f"https://t.me/{clean_ch}")])
+        
+        keyboard_buttons.append([InlineKeyboardButton(text="✅ Obunani tekshirish", callback_data="check_sub")])
+        
+        keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
         return await m.answer(
-            "⚠️ Botdan foydalanish uchun avval quyidagi kanalimizga obuna bo'ling:",
+            "⚠️ Botdan foydalanish uchun quyidagi barcha kanallarimizga obuna bo'ling:",
             reply_markup=keyboard
         )
 
@@ -234,7 +236,7 @@ async def process_check_sub(c: CallbackQuery):
     if is_subscribed:
         await c.message.edit_text("Rahmat! Obuna tasdiqlandi. Qaytadan /start buyrug'ini bosing.")
     else:
-        await c.answer("Siz hali kanalga obuna bo'lmadingiz!", show_alert=True)
+        await c.answer("Siz hali barcha kanallarga obuna bo'lmadingiz!", show_alert=True)
 
 
 # ---------------------------- MENYU ----------------------------
@@ -287,7 +289,6 @@ async def account(m: Message, state: FSMContext):
     uid = m.from_user.id
     u = one("SELECT * FROM users WHERE id=?", (uid,))
     
-    # Agar foydalanuvchi bazada topilmasa, yaratib qo'yamiz
     if not u:
         run(
             "INSERT INTO users(id,name,joined) VALUES(?,?,?)",
@@ -551,7 +552,7 @@ async def order_admin(c: CallbackQuery):
     action, oid = c.data.split(":")
     o = one("SELECT * FROM orders WHERE id=?", (int(oid),))
     if not o or o["status"] != "pending":
-        return await c.answer("Bu so'rov allaqachon ko'rib chiqilgan.", show_alert=True)
+        return await c.answer("Bu buyurtma allaqachon ko'rib chiqilgan.", show_alert=True)
     if action == "ook":
         run("UPDATE orders SET status='done' WHERE id=?", (o["id"],))
         await c.message.edit_text(c.message.html_text + "\n\n✅ <b>Bajarildi</b>")
