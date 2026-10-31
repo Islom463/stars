@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Xatoliklar to'g'rilandi
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Havola tekshiruvi bilan
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -57,7 +57,7 @@ threading.Thread(target=self_ping, daemon=True).start()
 # ===================== SOZLAMALAR =====================
 BOT_TOKEN = "9278626308:AAGIVO-g2F6cz2OnQX4vaWx6jGeDkwO8O44"
 ADMIN_IDS = [8099636943]
-ADMIN_USERNAME = "wezzcs"
+ADMIN_USERNAME = "wezzcs"  # @ belgisiz yozilsa tugma uchun qulay
 CARD_NUMBER = "5614681853951071"
 CARD_OWNER = "Panjiyev Muhammadali"
 REF_BONUS = 50
@@ -65,12 +65,14 @@ TOPUP_TIMEOUT = 5 * 60
 MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
 
-GROUP_LINK = "https://t.me/sizning_guruhingiz"
+# Guruh va Kanal havolalari (O'zingiznikiga o'zgartiring)
+GROUP_LINK = "https://t.me/sizning_guruhingiz"  # /join buyrug'i yo'naltiradigan guruh havolasi
 
 # UzSMM Panel API Sozlamalari
 SMM_API_URL = "https://uzsmmpanel.pp.ua/api/v2"
 SMM_API_KEY = "4abab7a5f4119fb078df3f971e6bb765"
 
+# SMM Xizmatlari va Service ID lari
 SMM_SERVICES = {
     "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3000, "min": 10, "service_id": 4217},
     "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 200, "min": 100, "service_id": 4},
@@ -203,6 +205,8 @@ def smm_services_kb():
     rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="order_back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
+# ===================== YANGI VA TAHRIRLANGAN KOMANDALAR =====================
+
 @dp.message(CommandStart())
 async def start(m: Message, command: CommandObject, state: FSMContext):
     await state.clear()
@@ -226,9 +230,11 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
                 pass
     await m.answer("👋 Xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=main_menu())
 
+
 @dp.message(Command("help"))
 async def help_cmd(m: Message, state: FSMContext):
     await state.clear()
+    # Admin lichkasiga o'tish uchun tugma
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", url=f"https://t.me/{ADMIN_USERNAME}")]
@@ -240,9 +246,11 @@ async def help_cmd(m: Message, state: FSMContext):
         reply_markup=keyboard
     )
 
+
 @dp.message(Command("join"))
 async def join_cmd(m: Message, state: FSMContext):
     await state.clear()
+    # Guruhga kirish uchun tugma
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="👥 Guruhga qo'shilish 🚀", url=GROUP_LINK)]
@@ -252,6 +260,8 @@ async def join_cmd(m: Message, state: FSMContext):
         "💬 Bizning rasmiy guruhimizga qo'shiling va boshqalar bilan muloqot qiling:",
         reply_markup=keyboard
     )
+
+# ===========================================================================
 
 @dp.callback_query(F.data == "check_sub")
 async def process_check_sub(c: CallbackQuery):
@@ -327,6 +337,7 @@ async def account(m: Message, state: FSMContext):
 
 @dp.message(F.text == "☎️ Yordam")
 async def help_text_btn(m: Message, state: FSMContext):
+    # Tugmadagi "Yordam" bosilganda ham /help funksiyasini ishlatamiz
     await help_cmd(m, state)
 
 @dp.message(F.text == "📄 Qo'llanma")
@@ -407,6 +418,7 @@ async def topup_admin(c: CallbackQuery):
         await bot.send_message(t["user_id"], "❌ To'lovingiz rad etildi.")
     await c.answer()
 
+# --- STARS & GIF LOGIKASI ---
 @dp.callback_query(F.data == "buy:manual")
 async def buy_manual(c: CallbackQuery, state: FSMContext):
     await state.set_state(OrderS.manual)
@@ -462,7 +474,7 @@ async def order_target(m: Message, state: FSMContext):
     for a in ADMIN_IDS:
         await bot.send_message(a, f"🛍 Stars/Gif Buyurtma #{oid}\nKimga: {target}\nSumma: {fmt(price)} so'm")
 
-# --- SMM PANEL API (Xatoliklardan himoyalangan) ---
+# ===================== SMM PANEL API ORQALI AVTO-NAKRUTKA =====================
 async def send_smm_order(service_id: int, link: str, quantity: int):
     payload = {
         'key': SMM_API_KEY,
@@ -474,10 +486,8 @@ async def send_smm_order(service_id: int, link: str, quantity: int):
     async with aiohttp.ClientSession() as session:
         try:
             async with session.post(SMM_API_URL, data=payload) as resp:
-                text_response = await resp.text()
-                if not text_response.strip():
-                    return None
-                return await resp.json(content_type=None)
+                result = await resp.json(content_type=None)
+                return result
         except Exception as e:
             logging.error(f"SMM API Error: {e}")
             return None
@@ -501,13 +511,25 @@ async def smm_target_received(m: Message, state: FSMContext):
     is_telegram = "t.me/" in link or link.startswith("@")
     
     if "tg_" in svc_key and not is_telegram:
-        return await m.answer("❌ <b>Link yoki silka xato!</b>\n\nIltimos, telegram linkini to'g'ri kiriting.")
+        return await m.answer(
+            "❌ <b>Link yoki silka xato!</b>\n\n"
+            "Iltimos, telegram linkini to'g'ri kiriting.",
+            parse_mode=ParseMode.HTML
+        )
     
     if "ig_" in svc_key and not is_instagram:
-        return await m.answer("❌ <b>Link yoki silka xato!</b>\n\nIltimos, instagram linkini to'g'ri kiriting.")
+        return await m.answer(
+            "❌ <b>Link yoki silka xato!</b>\n\n"
+            "Iltimos, instagram linkini to'g'ri kiriting.",
+            parse_mode=ParseMode.HTML
+        )
         
     if not (link.startswith("http://") or link.startswith("https://") or link.startswith("@")):
-        return await m.answer("❌ <b>Link yoki silka xato!</b>\n\nIltimos, to'g'ri link kiriting.")
+        return await m.answer(
+            "❌ <b>Link yoki silka xato!</b>\n\n"
+            "Iltimos, instagram yoki telegram linkini to'g'ri kiriting.",
+            parse_mode=ParseMode.HTML
+        )
 
     await state.update_data(target=link)
     await state.set_state(SmmOrderS.quantity)
@@ -536,7 +558,7 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     
     status = "processing"
     panel_text = "🚀 Avtomatik yuborildi"
-    if not api_res or not isinstance(api_res, dict) or "order" not in api_res:
+    if not api_res or "order" not in api_res:
         panel_text = "⚠️ Panelga yuborishda xatolik (Admin tekshiradi)"
     
     oid = run("INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
@@ -545,6 +567,7 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     await state.clear()
     await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
 
+# --- ADMIN BUYRUQLARI ---
 @dp.callback_query(F.data.startswith(("ook:", "ono:")))
 async def order_admin(c: CallbackQuery):
     if c.from_user.id not in ADMIN_IDS:
