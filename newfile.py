@@ -1,5 +1,5 @@
 """
-Telegram Stars va Gif sotish boti (aiogram 3.x) - To'liq yangilangan versiya
+Telegram Stars va Gif sotish boti (aiogram 3.x) - To'liq tuzatilgan versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -67,7 +67,7 @@ TOPUP_TIMEOUT = 5 * 60  # To'lovni tasdiqlash vaqti (soniya)
 MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
 
-# Yangi Stars narxlari paketlari (miqdor va so'm)
+# Aniq narxlar ro'yxati
 STARS_PACKAGES = [
     (50, 11000),
     (100, 22000),
@@ -108,7 +108,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
-# ---------------------------- BAZA (Tuzatilgan) ----------------------------
+# ---------------------------- BAZA ----------------------------
 db = sqlite3.connect("bot.db", check_same_thread=False)
 db.row_factory = sqlite3.Row
 db.executescript(
@@ -254,7 +254,6 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
             reply_markup=keyboard
         )
 
-    # Foydalanuvchi bazada yo'q bo'lsa qo'shamiz
     if not one("SELECT 1 FROM users WHERE id=?", (uid,)):
         ref = int(command.args) if command.args and command.args.isdigit() else None
         if ref == uid or (ref and not one("SELECT 1 FROM users WHERE id=?", (ref,))):
@@ -318,7 +317,7 @@ async def order_back_cb(c: CallbackQuery, state: FSMContext):
 async def order_stars_cb(c: CallbackQuery, state: FSMContext):
     await c.message.edit_text(
         'Stars miqdorini tanlang yoki "✍️ Qo\'lda hisoblash" tugmasini bosing:',
-        reply_markup=packages_kb(),
+        reply_markup=stars_packages_kb(),
     )
     await c.answer()
 
@@ -523,7 +522,6 @@ async def topup_admin(c: CallbackQuery):
         return await c.answer("Bu so'rov allaqachon ko'rib chiqilgan.", show_alert=True)
     if action == "tok":
         run("UPDATE topups SET status='approved' WHERE id=?", (t["id"],))
-        # Balansga pulni to'g'ri qo'shish va user bazada yo'q bo'lsa xavfsizlik
         user_check = one("SELECT 1 FROM users WHERE id=?", (t["user_id"],))
         if not user_check:
             run("INSERT INTO users(id,name,balance,joined) VALUES(?,?,?,?)", (t["user_id"], "User", t["amount"], int(time.time())))
@@ -579,7 +577,6 @@ async def manual_stars(m: Message, state: FSMContext):
     if not digits or not (MIN_STARS <= int(digits) <= MAX_STARS):
         return await m.answer(f"❗ {MIN_STARS} dan {fmt(MAX_STARS)} gacha son kiriting.")
     stars = int(digits)
-    # Qo'lda yozilganda taxminiy narx hisoblash (masalan 1 ta star ~ 215 so'm yoki o'zingizga mos formula)
     price = stars * 215 
     await ask_target_for_item(m, state, m.from_user.id, "star", str(stars), price)
 
@@ -623,7 +620,6 @@ async def order_target(m: Message, state: FSMContext):
     if balance < price:
         return await m.answer("❗ Hisobingizda mablag' yetarli emas.")
     
-    # Pulni balanddan yechib qolish
     run("UPDATE users SET balance=balance-? WHERE id=?", (price, uid))
     
     oid = run(
