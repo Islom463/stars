@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Havola tekshiruvi bilan
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Optimallashtirilgan versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -57,7 +57,7 @@ threading.Thread(target=self_ping, daemon=True).start()
 # ===================== SOZLAMALAR =====================
 BOT_TOKEN = "9278626308:AAGIVO-g2F6cz2OnQX4vaWx6jGeDkwO8O44"
 ADMIN_IDS = [8099636943]
-ADMIN_USERNAME = "wezzcs"  # @ belgisiz yozilsa tugma uchun qulay
+ADMIN_USERNAME = "wezzcs"
 CARD_NUMBER = "5614681853951071"
 CARD_OWNER = "Panjiyev Muhammadali"
 REF_BONUS = 50
@@ -65,14 +65,11 @@ TOPUP_TIMEOUT = 5 * 60
 MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
 
-# Guruh va Kanal havolalari (O'zingiznikiga o'zgartiring)
-GROUP_LINK = "https://t.me/+it0gFpM918A4ODE6"  # /join buyrug'i yo'naltiradigan guruh havolasi
+GROUP_LINK = "https://t.me/+it0gFpM918A4ODE6"
 
-# UzSMM Panel API Sozlamalari
 SMM_API_URL = "https://uzsmmpanel.pp.ua/api/v2"
 SMM_API_KEY = "4abab7a5f4119fb078df3f971e6bb765"
 
-# SMM Xizmatlari va Service ID lari
 SMM_SERVICES = {
     "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3000, "min": 10, "service_id": 4217},
     "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 200, "min": 100, "service_id": 4},
@@ -205,8 +202,6 @@ def smm_services_kb():
     rows.append([InlineKeyboardButton(text="⬅️ Orqaga", callback_data="order_back")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
-# ===================== YANGI VA TAHRIRLANGAN KOMANDALAR =====================
-
 @dp.message(CommandStart())
 async def start(m: Message, command: CommandObject, state: FSMContext):
     await state.clear()
@@ -234,7 +229,6 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
 @dp.message(Command("help"))
 async def help_cmd(m: Message, state: FSMContext):
     await state.clear()
-    # Admin lichkasiga o'tish uchun tugma
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", url=f"https://t.me/{ADMIN_USERNAME}")]
@@ -250,7 +244,6 @@ async def help_cmd(m: Message, state: FSMContext):
 @dp.message(Command("join"))
 async def join_cmd(m: Message, state: FSMContext):
     await state.clear()
-    # Guruhga kirish uchun tugma
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="👥 Guruhga qo'shilish 🚀", url=GROUP_LINK)]
@@ -260,8 +253,6 @@ async def join_cmd(m: Message, state: FSMContext):
         "💬 Bizning rasmiy guruhimizga qo'shiling va boshqalar bilan muloqot qiling:",
         reply_markup=keyboard
     )
-
-# ===========================================================================
 
 @dp.callback_query(F.data == "check_sub")
 async def process_check_sub(c: CallbackQuery):
@@ -278,22 +269,34 @@ async def order_menu(m: Message, state: FSMContext):
 @dp.callback_query(F.data == "order_back")
 async def order_back_cb(c: CallbackQuery, state: FSMContext):
     await state.clear()
-    await c.message.edit_text("🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:", reply_markup=order_type_kb())
+    try:
+        await c.message.edit_text("🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:", reply_markup=order_type_kb())
+    except Exception:
+        await c.message.answer("🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:", reply_markup=order_type_kb())
     await c.answer()
 
 @dp.callback_query(F.data == "order:stars")
 async def order_stars_cb(c: CallbackQuery, state: FSMContext):
-    await c.message.edit_text('Stars miqdorini tanlang:', reply_markup=stars_packages_kb())
+    try:
+        await c.message.edit_text('Stars miqdorini tanlang:', reply_markup=stars_packages_kb())
+    except Exception:
+        await c.message.answer('Stars miqdorini tanlang:', reply_markup=stars_packages_kb())
     await c.answer()
 
 @dp.callback_query(F.data == "order:gifs")
 async def order_gifs_cb(c: CallbackQuery, state: FSMContext):
-    await c.message.edit_text("🎁 Kerakli gifni tanlang:", reply_markup=gifs_packages_kb())
+    try:
+        await c.message.edit_text("🎁 Kerakli gifni tanlang:", reply_markup=gifs_packages_kb())
+    except Exception:
+        await c.message.answer("🎁 Kerakli gifni tanlang:", reply_markup=gifs_packages_kb())
     await c.answer()
 
 @dp.callback_query(F.data == "order:smm")
 async def order_smm_cb(c: CallbackQuery, state: FSMContext):
-    await c.message.edit_text("🚀 SMM xizmatini tanlang:", reply_markup=smm_services_kb())
+    try:
+        await c.message.edit_text("🚀 SMM xizmatini tanlang:", reply_markup=smm_services_kb())
+    except Exception:
+        await c.message.answer("🚀 SMM xizmatini tanlang:", reply_markup=smm_services_kb())
     await c.answer()
 
 @dp.message(F.text == "🛒 Buyurtmalar")
@@ -337,7 +340,6 @@ async def account(m: Message, state: FSMContext):
 
 @dp.message(F.text == "☎️ Yordam")
 async def help_text_btn(m: Message, state: FSMContext):
-    # Tugmadagi "Yordam" bosilganda ham /help funksiyasini ishlatamiz
     await help_cmd(m, state)
 
 @dp.message(F.text == "📄 Qo'llanma")
@@ -383,7 +385,10 @@ async def expire_later(tid: int, chat_id: int, msg_id: int):
 async def topup_cancel(c: CallbackQuery):
     tid = int(c.data.split(":")[1])
     run("UPDATE topups SET status='cancelled' WHERE id=?", (tid,))
-    await c.message.edit_text("❌ Bekor qilindi.")
+    try:
+        await c.message.edit_text("❌ Bekor qilindi.")
+    except Exception:
+        pass
     await c.answer()
 
 @dp.callback_query(F.data.startswith("paid:"))
@@ -393,7 +398,10 @@ async def topup_paid(c: CallbackQuery):
     if not t or t["user_id"] != c.from_user.id:
         return await c.answer()
     run("UPDATE topups SET status='checking' WHERE id=?", (tid,))
-    await c.message.edit_text("⏳ Admin tekshirmoqda.")
+    try:
+        await c.message.edit_text("⏳ Admin tekshirmoqda.")
+    except Exception:
+        pass
     kb = InlineKeyboardBuilder()
     kb.button(text="✅ Tasdiqlash", callback_data=f"tok:{tid}")
     kb.button(text="❌ Rad etish", callback_data=f"tno:{tid}")
@@ -410,15 +418,21 @@ async def topup_admin(c: CallbackQuery):
     if action == "tok":
         run("UPDATE topups SET status='approved' WHERE id=?", (t["id"],))
         run("UPDATE users SET balance=balance+? WHERE id=?", (t["amount"], t["user_id"]))
-        await c.message.edit_text("✅ Tasdiqlandi")
+        try:
+            await c.message.edit_text("✅ Tasdiqlandi")
+        except Exception:
+            pass
         await bot.send_message(t["user_id"], f"✅ Balansingiz {fmt(t['amount'])} so'mga to'ldirildi!")
     else:
         run("UPDATE topups SET status='rejected' WHERE id=?", (t["id"],))
-        await c.message.edit_text("❌ Rad etildi")
+        try:
+            await c.message.edit_text("❌ Rad etildi")
+        except Exception:
+            pass
         await bot.send_message(t["user_id"], "❌ To'lovingiz rad etildi.")
     await c.answer()
 
-# --- STARS & GIF LOGIKASI ---
+# --- STARS & GIF LOGIKASI (TUZATILGAN) ---
 @dp.callback_query(F.data == "buy:manual")
 async def buy_manual(c: CallbackQuery, state: FSMContext):
     await state.set_state(OrderS.manual)
@@ -428,13 +442,13 @@ async def buy_manual(c: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data.startswith("star:"))
 async def buy_star_package(c: CallbackQuery, state: FSMContext):
     _, stars_str, price_str = c.data.split(":")
-    await ask_target_for_item(c.message, state, c.from_user.id, "star", stars_str, int(price_str))
+    await ask_target_for_item(c.message, state, c.from_user.id, "star", f"{stars_str} ⭐️", int(price_str))
     await c.answer()
 
 @dp.callback_query(F.data.startswith("gif:"))
 async def buy_gif_package(c: CallbackQuery, state: FSMContext):
     _, g_icon, price_str = c.data.split(":")
-    await ask_target_for_item(c.message, state, c.from_user.id, "gif", g_icon, int(price_str))
+    await ask_target_for_item(c.message, state, c.from_user.id, "gif", f"Gif {g_icon}", int(price_str))
     await c.answer()
 
 @dp.message(OrderS.manual, F.text)
@@ -443,7 +457,7 @@ async def manual_stars(m: Message, state: FSMContext):
     if not digits or not (MIN_STARS <= int(digits) <= MAX_STARS):
         return await m.answer("❗ Xato miqdor.")
     stars = int(digits)
-    await ask_target_for_item(m, state, m.from_user.id, "star", str(stars), stars * 215)
+    await ask_target_for_item(m, state, m.from_user.id, "star", f"{stars} ⭐️", stars * 215)
 
 async def ask_target_for_item(msg: Message, state: FSMContext, uid: int, item_type: str, item_name: str, price: int):
     u = one("SELECT balance FROM users WHERE id=?", (uid,))
@@ -451,9 +465,10 @@ async def ask_target_for_item(msg: Message, state: FSMContext, uid: int, item_ty
     if balance < price:
         await state.clear()
         return await msg.answer(f"❗ Balans yetarli emas. Kerak: {fmt(price)} so'm")
+    
     await state.set_state(OrderS.target)
     await state.update_data(item_type=item_type, item_name=item_name, price=price)
-    await msg.answer(f"📦 Narxi: <b>{fmt(price)} so'm</b>\n\nQabul qiluvchi <b>@username</b> ni kiriting:")
+    await msg.answer(f"📦 Tanlandi: <b>{item_name}</b>\n💰 Narxi: <b>{fmt(price)} so'm</b>\n\nQabul qiluvchi <b>@username</b> yoki <b>ID</b> ni kiriting:")
 
 @dp.message(OrderS.target, F.text)
 async def order_target(m: Message, state: FSMContext):
@@ -464,15 +479,17 @@ async def order_target(m: Message, state: FSMContext):
     
     u = one("SELECT balance FROM users WHERE id=?", (uid,))
     await state.clear()
-    if u['balance'] < price:
+    
+    if not u or u['balance'] < price:
         return await m.answer("❗ Balans yetarli emas.")
     
     run("UPDATE users SET balance=balance-? WHERE id=?", (price, uid))
     oid = run("INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
               (uid, data['item_type'], data['item_name'], price, target, "pending", int(time.time())))
-    await m.answer(f"✅ Buyurtma #{oid} qabul qilindi!")
+    
+    await m.answer(f"✅ Buyurtma #{oid} qabul qilindi! Tez orada bajariladi.")
     for a in ADMIN_IDS:
-        await bot.send_message(a, f"🛍 Stars/Gif Buyurtma #{oid}\nKimga: {target}\nSumma: {fmt(price)} so'm")
+        await bot.send_message(a, f"🛍 Stars/Gif Buyurtma #{oid}\nKimga: {target}\nMahsulot: {data['item_name']}\nSumma: {fmt(price)} so'm")
 
 # ===================== SMM PANEL API ORQALI AVTO-NAKRUTKA =====================
 async def send_smm_order(service_id: int, link: str, quantity: int):
@@ -498,7 +515,10 @@ async def smm_service_selected(c: CallbackQuery, state: FSMContext):
     svc_info = SMM_SERVICES.get(svc_key)
     await state.update_data(smm_key=svc_key, smm_name=svc_info["name"], price_1k=svc_info["price_per_1000"], min_qty=svc_info["min"], service_id=svc_info["service_id"])
     await state.set_state(SmmOrderS.target)
-    await c.message.edit_text(f"🚀 <b>{svc_info['name']}</b>\n\n🔗 Havolani (link) yuboring:")
+    try:
+        await c.message.edit_text(f"🚀 <b>{svc_info['name']}</b>\n\n🔗 Havolani (link) yuboring:")
+    except Exception:
+        await c.message.answer(f"🚀 <b>{svc_info['name']}</b>\n\n🔗 Havolani (link) yuboring:")
     await c.answer()
 
 @dp.message(SmmOrderS.target, F.text)
@@ -511,25 +531,9 @@ async def smm_target_received(m: Message, state: FSMContext):
     is_telegram = "t.me/" in link or link.startswith("@")
     
     if "tg_" in svc_key and not is_telegram:
-        return await m.answer(
-            "❌ <b>Link yoki silka xato!</b>\n\n"
-            "Iltimos, telegram linkini to'g'ri kiriting.",
-            parse_mode=ParseMode.HTML
-        )
-    
+        return await m.answer("❌ Telegram havolasi noto'g'ri kiritildi.")
     if "ig_" in svc_key and not is_instagram:
-        return await m.answer(
-            "❌ <b>Link yoki silka xato!</b>\n\n"
-            "Iltimos, instagram linkini to'g'ri kiriting.",
-            parse_mode=ParseMode.HTML
-        )
-        
-    if not (link.startswith("http://") or link.startswith("https://") or link.startswith("@")):
-        return await m.answer(
-            "❌ <b>Link yoki silka xato!</b>\n\n"
-            "Iltimos, instagram yoki telegram linkini to'g'ri kiriting.",
-            parse_mode=ParseMode.HTML
-        )
+        return await m.answer("❌ Instagram havolasi noto'g'ri kiritildi.")
 
     await state.update_data(target=link)
     await state.set_state(SmmOrderS.quantity)
@@ -566,39 +570,6 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     
     await state.clear()
     await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
-
-# --- ADMIN BUYRUQLARI ---
-@dp.callback_query(F.data.startswith(("ook:", "ono:")))
-async def order_admin(c: CallbackQuery):
-    if c.from_user.id not in ADMIN_IDS:
-        return await c.answer("Ruxsat yo'q", show_alert=True)
-    action, oid = c.data.split(":")
-    o = one("SELECT * FROM orders WHERE id=?", (int(oid),))
-    if action == "ook":
-        run("UPDATE orders SET status='done' WHERE id=?", (o["id"],))
-        await c.message.edit_text("✅ Bajarildi")
-        await bot.send_message(o["user_id"], f"✅ Buyurtma #{o['id']} bajarildi!")
-    else:
-        run("UPDATE orders SET status='cancelled' WHERE id=?", (o["id"],))
-        run("UPDATE users SET balance=balance+? WHERE id=?", (o["price"], o["user_id"]))
-        await c.message.edit_text("❌ Bekor qilindi (pul qaytarildi)")
-        await bot.send_message(o["user_id"], f"❌ Buyurtma #{o['id']} bekor qilindi, pul qaytarildi.")
-    await c.answer()
-
-@dp.message(Command("stats"), F.from_user.id.in_(ADMIN_IDS))
-async def stats(m: Message):
-    users = one("SELECT COUNT(*) c FROM users")["c"]
-    done = one("SELECT COUNT(*) c, COALESCE(SUM(price),0) s FROM orders WHERE status='done'")
-    await m.answer(f"📊 Foydalanuvchilar: {users}\n✅ Bajarilgan: {done['c']} ({fmt(done['s'])} so'm)")
-
-@dp.message(Command("add"), F.from_user.id.in_(ADMIN_IDS))
-async def add_balance(m: Message, command: CommandObject):
-    try:
-        uid, amount = command.args.split()
-        run("UPDATE users SET balance=balance+? WHERE id=?", (int(amount), int(uid)))
-        await m.answer("✅ Balans qo'shildi.")
-    except Exception:
-        await m.answer("Foydalanish: /add USER_ID SUMMA")
 
 async def main():
     me = await bot.get_me()
