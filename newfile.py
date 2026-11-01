@@ -66,16 +66,18 @@ MAX_TOPUP = 5_000_000
 
 GROUP_LINK = "https://t.me/apex_serv1ce"
 
-SMM_API_URL = "https://uzsmmpanel.pp.ua/api/v2"
-SMM_API_KEY = "4abab7a5f4119fb078df3f971e6bb765"
+# JAP API sozlamalari
+SMM_API_URL = "https://justanotherpanel.com/api/v2"
+SMM_API_KEY = "c2dfb84fb27ca501b995388e7b39fa97"
 
+# Barcha xizmat narxlariga 500 so'mdan qo'shib chiqildi
 SMM_SERVICES = {
-    "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3000, "min": 10, "service_id": 4217},
-    "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 200, "min": 100, "service_id": 4},
-    "smm_ig_subs": {"name": "👥 IG Obunachilar", "price_per_1000": 15000, "min": 50, "service_id": 5},
-    "smm_tg_views": {"name": "👁 TG Post ko'rish", "price_per_1000": 500, "min": 100, "service_id": 1},
-    "smm_tg_reactions": {"name": "🔥 TG Reaksiyalar", "price_per_1000": 1000, "min": 50, "service_id": 2},
-    "smm_tg_subs": {"name": "👤 TG Obunachilar", "price_per_1000": 12000, "min": 100, "service_id": 3},
+    "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3500, "min": 10, "service_id": 4217},
+    "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 700, "min": 100, "service_id": 4},
+    "smm_ig_subs": {"name": "👥 IG Obunachilar", "price_per_1000": 15500, "min": 50, "service_id": 5},
+    "smm_tg_views": {"name": "👁 TG Post ko'rish", "price_per_1000": 1000, "min": 100, "service_id": 1},
+    "smm_tg_reactions": {"name": "🔥 TG Reaksiyalar", "price_per_1000": 1500, "min": 50, "service_id": 2},
+    "smm_tg_subs": {"name": "👤 TG Obunachilar", "price_per_1000": 12500, "min": 100, "service_id": 3},
 }
 
 STARS_PACKAGES = [
@@ -224,7 +226,6 @@ async def start(m: Message, command: CommandObject, state: FSMContext):
                 pass
     await m.answer("👋 Xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=main_menu())
 
-
 @dp.message(Command("help"))
 async def help_cmd(m: Message, state: FSMContext):
     await state.clear()
@@ -238,7 +239,6 @@ async def help_cmd(m: Message, state: FSMContext):
         "Botdan foydalanishda muammo yuzaga kelsa yoki savollaringiz bo'lsa, quyidagi tugma orqali admin bilan bog'lanishingiz mumkin:",
         reply_markup=keyboard
     )
-
 
 @dp.message(Command("join"))
 async def join_cmd(m: Message, state: FSMContext):
@@ -575,7 +575,6 @@ async def main():
     me = await bot.get_me()
     print("BOT ISHLADI: @" + me.username)
     await bot.delete_webhook(drop_pending_updates=True)
-    # drop_pending_updates=True parametri bot yoqilgunga qadar to'planib qolgan eski xabarlarni tashlab yuboradi va botni tez ishga tushiradi
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
