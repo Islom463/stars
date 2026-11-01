@@ -64,7 +64,7 @@ TOPUP_TIMEOUT = 5 * 60
 MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
 
-GROUP_LINK = "https://t.me/+it0gFpM918A4ODE6"
+GROUP_LINK = "https://t.me/apex_serv1ce"
 
 SMM_API_URL = "https://uzsmmpanel.pp.ua/api/v2"
 SMM_API_KEY = "4abab7a5f4119fb078df3f971e6bb765"
