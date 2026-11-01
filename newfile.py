@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Tezkor va Optimallashtirilgan Versiya
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Tezkor Versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -54,7 +54,6 @@ def self_ping():
 
 threading.Thread(target=self_ping, daemon=True).start()
 
-# ===================== SOZLAMALAR =====================
 BOT_TOKEN = "9278626308:AAGIVO-g2F6cz2OnQX4vaWx6jGeDkwO8O44"
 ADMIN_IDS = [8099636943]
 ADMIN_USERNAME = "wezzcs"
@@ -435,7 +434,6 @@ async def topup_admin(c: CallbackQuery):
         await bot.send_message(t["user_id"], "❌ To'lovingiz rad etildi.")
     await c.answer()
 
-# --- STARS & GIF LOGIKASI ---
 @dp.callback_query(F.data == "buy:manual")
 async def buy_manual(c: CallbackQuery, state: FSMContext):
     await state.set_state(OrderS.manual)
@@ -494,7 +492,6 @@ async def order_target(m: Message, state: FSMContext):
     for a in ADMIN_IDS:
         await bot.send_message(a, f"🛍 Stars/Gif Buyurtma #{oid}\nKimga: {target}\nMahsulot: {data['item_name']}\nSumma: {fmt(price)} so'm")
 
-# ===================== SMM PANEL API ORQALI AVTO-NAKRUTKA =====================
 async def send_smm_order(service_id: int, link: str, quantity: int):
     payload = {
         'key': SMM_API_KEY,
@@ -578,6 +575,7 @@ async def main():
     me = await bot.get_me()
     print("BOT ISHLADI: @" + me.username)
     await bot.delete_webhook(drop_pending_updates=True)
+    # drop_pending_updates=True parametri bot yoqilgunga qadar to'planib qolgan eski xabarlarni tashlab yuboradi va botni tez ishga tushiradi
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
