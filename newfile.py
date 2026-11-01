@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Optimallashtirilgan versiya
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti (aiogram 3.x) - Tezkor va Optimallashtirilgan Versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -257,7 +257,10 @@ async def join_cmd(m: Message, state: FSMContext):
 @dp.callback_query(F.data == "check_sub")
 async def process_check_sub(c: CallbackQuery):
     if await check_user_subscription(c.from_user.id, bot):
-        await c.message.edit_text("Rahmat! Obuna tasdiqlandi. Qaytadan /start buyrug'ini bosing.")
+        try:
+            await c.message.edit_text("Rahmat! Obuna tasdiqlandi. Qaytadan /start buyrug'ini bosing.")
+        except Exception:
+            await c.message.answer("Rahmat! Obuna tasdiqlandi. Qaytadan /start buyrug'ini bosing.")
     else:
         await c.answer("Siz hali barcha kanallarga obuna bo'lmadingiz!", show_alert=True)
 
@@ -432,7 +435,7 @@ async def topup_admin(c: CallbackQuery):
         await bot.send_message(t["user_id"], "❌ To'lovingiz rad etildi.")
     await c.answer()
 
-# --- STARS & GIF LOGIKASI (TUZATILGAN) ---
+# --- STARS & GIF LOGIKASI ---
 @dp.callback_query(F.data == "buy:manual")
 async def buy_manual(c: CallbackQuery, state: FSMContext):
     await state.set_state(OrderS.manual)
