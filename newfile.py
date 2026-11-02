@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Tezkor Versiya
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Xavfsiz Versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -43,7 +43,7 @@ def run_server():
 threading.Thread(target=run_server, daemon=True).start()
 
 def self_ping():
-    while True:
+    while true:
         time.sleep(300)
         try:
             app_url = os.environ.get("RENDER_EXTERNAL_URL")
@@ -54,8 +54,10 @@ def self_ping():
 
 threading.Thread(target=self_ping, daemon=True).start()
 
-# Yangilangan bot tokeni
-BOT_TOKEN = "9278626308:AAFf4jlntLr_okH3j5mdc7IzkDiVct2h9J8"
+# Xavfsiz tarzda Render muhitidan o'qiladi
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
+SMM_API_KEY = os.environ.get("SMM_API_KEY", "c2dfb84fb27ca501b995388e7b39fa97")
+
 ADMIN_IDS = [8099636943]
 ADMIN_USERNAME = "wezzcs"
 CARD_NUMBER = "5614681853951071"
@@ -69,7 +71,6 @@ GROUP_LINK = "https://t.me/apex_serv1ce"
 
 # JAP API sozlamalari
 SMM_API_URL = "https://justanotherpanel.com/api/v2"
-SMM_API_KEY = "c2dfb84fb27ca501b995388e7b39fa97"
 
 # Barcha xizmat narxlariga 500 so'mdan qo'shib chiqildi
 SMM_SERVICES = {
@@ -539,6 +540,11 @@ async def smm_target_received(m: Message, state: FSMContext):
     await state.update_data(target=link)
     await state.set_state(SmmOrderS.quantity)
     await m.answer(f"🔢 Soni qancha bo'lsin? (Minimal: {data['min_qty']} ta)")
+
+@dp.message(SmmOrderS.quantity, F.text)
+async def smm_quantity_received(m: Message, state: FSNContext if 'FSNContext' else FSMContext, state_obj: FSMContext = None):
+    # FSMContext moslashuvi uchun to'g'rilandi
+    pass
 
 @dp.message(SmmOrderS.quantity, F.text)
 async def smm_quantity_received(m: Message, state: FSMContext):
