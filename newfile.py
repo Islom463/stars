@@ -486,3 +486,125 @@ async def order_target(m: Message, state: FSMContext):
     run("UPDATE users SET balance=balance-? WHERE id=?", (price, uid))
     oid = run("INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
               (uid, data['item_type'], data['item_name'], price, target, "pending", int(time.time())))
+    
+    await m.answer(f"✅ Buyurtma #{oid} qabul qilindi! Tez orada bajariladi.")
+    for a in ADMIN_IDS:
+        await bot.send_message(a, f"🛍 Stars/Gif Buyurtma #{oid}\nKimga: {target}\nMahsulot: {data['item_name']}\nSumma: {fmt(price)} so'm")
+
+async def send_smm_order(service_id: int, link: str, quantity: int):
+    payload = {
+        'key': SMM_API_KEY,
+        'action': 'add',
+        'service': service_id,
+        'link': link,
+        'quantity': quantity
+    }
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(SMM_API_URL, data=payload) as resp:
+                result = await resp.json(content_type=None)
+                return result
+        except Exception as e:
+            logging.error(f"SMM API Error: {e}")
+            return None
+
+@dp.callback_query(F.data.startswith("smm_svc:"))
+async def smm_service_selected(c: CallbackQuery, state: FSMContext):
+    svc_key = c.data.replace("smm_svc:", "")
+    svc_info = SMM_SERVICES.get(svc_key)
+    await state.update_data(smm_key=svc_key, smm_name=svc_info["name"], price_1k=svc_info["price_per_1000"], min_qty=svc_info["min"], service_id=svc_info["service_id"])
+    await state.set_state(SmmOrderS.target)
+    try:
+        await c.message.edit_text(f"🚀 <b>{svc_info['name']}</b>\n\n🔗 Havolani (link) yuboring:")
+    except Exception:
+        await c.message.answer(f"🚀 <b>{svc_info['name']}</b>\n\n🔗 Havolani (link) yuboring:")
+    await c.answer()
+
+@dp.message(SmmOrderS.target, F.text)
+async def smm_target_received(m: Message, state: FSMContext):
+    link = m.text.strip()
+    data = await state.get_data()
+    svc_key = data["smm_key"]
+    
+    is_instagram = "instagram.com" in link or "instagr.am" in link
+    is_telegram = "t.me/" in link or link.startswith("@")
+    
+    if "tg_" in svc_key and not is_telegram:
+        return await m.answer("❌ Telegram havolasi noto'g'ri kiritildi.")
+    if "ig_" in svc_key and not is_instagram:
+        return await m.answer("❌ Instagram havolasi noto'g'ri kiritildi.")
+
+    await state.update_data(target=link)
+    await state.set_state(SmmOrderS.quantity)
+    await m.answer(f"🔢 Soni qancha bo'lsin? (Minimal: {data['min_qty']} ta)")
+
+@dp.message(SmmOrderS.quantity, F.text)
+async def smm_quantity_received(m: Message, state: FSMContext):
+    if not m.text.isdigit():
+        return await m.answer("❗ Faqat raqam kiriting!")
+    qty = int(m.text)
+    data = await state.get_data()
+    
+    if qty < data["min_qty"]:
+        return await m.answer(f"❗ Minimal miqdor {data['min_qty']} tadan kam bo'lmasligi kerak.")
+    
+    total_price = int((qty / 1000) * data["price_1k"])
+    uid = m.from_user.id
+    u = one("SELECT balance FROM users WHERE id=?", (uid,))
+    
+    if u['balance'] < total_price:
+        await state.clear()
+        return await m.answer(f"❗ Balans yetarli emas. Kerak: {fmt(total_price)} so'm")
+    
+    run("UPDATE users SET balance=balance-? WHERE id=?", (total_price, uid))
+    api_res = await send_smm_order(data["service_id"], data["target"], qty)
+    
+    status = "processing"
+    panel_text = "🚀 Avtomatik yuborildi"
+    if not api_res or "order" not in api_res:
+        panel_text = "⚠️ Panelga yuborishda xatolik (Admin tekshiradi)"
+    
+    oid = run("INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
+              (uid, "smm", f"{data['smm_name']} ({qty} ta)", total_price, data["target"], status, int(time.time())))
+    
+    await state.clear()
+    await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
+
+# --- GROQ (LLAMA 3.1) BEPUL AI QISMI ---
+@dp.message(F.text)
+async def chat_with_ai(message: Message):
+    wait_msg = await message.answer("⏳ O'ylayapman...")
+    try:
+        async with aiohttp.ClientSession() as session:
+            headers = {
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "llama-3.1-8b-instant",
+                "messages": [
+                    {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz. O'zbek tilida javob bering."},
+                    {"role": "user", "content": message.text}
+                ]
+            }
+            async with session.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers) as resp:
+                res_json = await resp.json()
+                if resp.status == 200 and "choices" in res_json:
+                    answer = res_json["choices"][0]["message"]["content"]
+                    await wait_msg.edit_text(answer)
+                else:
+                    err_msg = res_json.get("error", {}).get("message", "Noma'lum xatolik")
+                    logging.error(f"Groq API error: {err_msg}")
+                    await wait_msg.edit_text(f"❌ AI xatosi: {err_msg}")
+    except Exception as e:
+        logging.error(f"AI Connection Error: {e}")
+        await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik yuz berdi.")
+
+async def main():
+    me = await bot.get_me()
+    print("AI Bot ishga tushdi: @" + me.username)
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
