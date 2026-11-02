@@ -43,7 +43,7 @@ def run_server():
 threading.Thread(target=run_server, daemon=True).start()
 
 def self_ping():
-    while true:
+    while True:
         time.sleep(300)
         try:
             app_url = os.environ.get("RENDER_EXTERNAL_URL")
@@ -54,8 +54,8 @@ def self_ping():
 
 threading.Thread(target=self_ping, daemon=True).start()
 
-# Xavfsiz tarzda Render muhitidan o'qiladi
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
+# Bot tokeni va SMM kaliti
+BOT_TOKEN = "9278626308:AAGDU2XEpdeTWtrchHgozBc3JELAdxpCNBo"
 SMM_API_KEY = os.environ.get("SMM_API_KEY", "c2dfb84fb27ca501b995388e7b39fa97")
 
 ADMIN_IDS = [8099636943]
@@ -540,11 +540,6 @@ async def smm_target_received(m: Message, state: FSMContext):
     await state.update_data(target=link)
     await state.set_state(SmmOrderS.quantity)
     await m.answer(f"🔢 Soni qancha bo'lsin? (Minimal: {data['min_qty']} ta)")
-
-@dp.message(SmmOrderS.quantity, F.text)
-async def smm_quantity_received(m: Message, state: FSNContext if 'FSNContext' else FSMContext, state_obj: FSMContext = None):
-    # FSMContext moslashuvi uchun to'g'rilandi
-    pass
 
 @dp.message(SmmOrderS.quantity, F.text)
 async def smm_quantity_received(m: Message, state: FSMContext):
