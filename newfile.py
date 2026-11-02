@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - To'liq To'g'rilangan Versiya
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Groq (Llama 3) Bepul AI Versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -56,7 +56,7 @@ threading.Thread(target=self_ping, daemon=True).start()
 
 BOT_TOKEN = "9278626308:AAGDU2XEpdeTWtrchHgozBc3JELAdxpCNBo"
 SMM_API_KEY = os.environ.get("SMM_API_KEY", "c2dfb84fb27ca501b995388e7b39fa97")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+GROQ_API_KEY = os.environ.get("OPENAI_API_KEY")
 
 ADMIN_IDS = [8099636943]
 ADMIN_USERNAME = "wezzcs"
@@ -570,32 +570,32 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     await state.clear()
     await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
 
-# --- YANGILANGAN OPENAI CHAT QISMI (GPT-4O-MINI) ---
+# --- GROQ (LLAMA 3) BEPUL AI QISMI ---
 @dp.message(F.text)
 async def chat_with_ai(message: Message):
     wait_msg = await message.answer("⏳ O'ylayapman...")
     try:
         async with aiohttp.ClientSession() as session:
             headers = {
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Authorization": f"Bearer {GROQ_API_KEY}",
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "gpt-4o-mini",
+                "model": "llama3-70b-8192",
                 "messages": [
-                    {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz."},
+                    {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz. O'zbek tilida javob bering."},
                     {"role": "user", "content": message.text}
                 ]
             }
-            async with session.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers) as resp:
+            async with session.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers) as resp:
                 res_json = await resp.json()
                 if resp.status == 200 and "choices" in res_json:
                     answer = res_json["choices"][0]["message"]["content"]
                     await wait_msg.edit_text(answer)
                 else:
                     err_msg = res_json.get("error", {}).get("message", "Noma'lum xatolik")
-                    logging.error(f"OpenAI API error: {err_msg}")
-                    await wait_msg.edit_text(f"❌ OpenAI xatosi: {err_msg}")
+                    logging.error(f"Groq API error: {err_msg}")
+                    await wait_msg.edit_text(f"❌ AI xatosi: {err_msg}")
     except Exception as e:
         logging.error(f"AI Connection Error: {e}")
         await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik yuz berdi.")
