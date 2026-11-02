@@ -489,7 +489,7 @@ async def topup_amount(m: Message, state: FSMContext):
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# --- GOOGLE GEMINI AI CHAT (100% ishlaydigan yangi gemini-2.5-flash versiyasi) ---
+# --- GOOGLE GEMINI AI CHAT (gemini-3.8-flash modeli) ---
 ai_hist = {}
 
 
@@ -505,8 +505,8 @@ async def chat_with_gemini(message: Message):
     del hist[:-8]
 
     try:
-        # Eng so'nggi va barqaror gemini-2.5-flash modeli va v1beta endpointi
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # Xatoda talab qilingan gemini-3.8-flash modeli va v1beta
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": hist}
         
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
