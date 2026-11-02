@@ -77,7 +77,6 @@ def get_env(exact_names, prefix):
 
 
 BOT_TOKEN = get_env(["BOT_TOKEN", "TELEGRAM_BOT_TOKEN", "TOKEN"], "BOT_")
-# Endi Gemini yoki OpenAI kalitini o'qiydi
 GEMINI_API_KEY = get_env(["GEMINI_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY"], "GEMINI")
 SMM_API_KEY = get_env(["SMM_API_KEY"], "SMM")
 
@@ -418,7 +417,7 @@ async def topup_amount(m: Message, state: FSMContext):
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# --- Google Gemini AI Chat ---
+# --- Google Gemini AI Chat (v1 versiyaga to'g'rilandi) ---
 ai_hist = {}
 
 
@@ -434,7 +433,8 @@ async def chat_with_gemini(message: Message):
     del hist[:-8]
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # v1 ga o'zgartirildi
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": hist}
         
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
