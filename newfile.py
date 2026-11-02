@@ -33,7 +33,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 logging.basicConfig(level=logging.INFO)
 
 
-# ---------------- Render uchun mini veb-server ----------------
 class SimpleHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -66,7 +65,6 @@ def self_ping():
 threading.Thread(target=self_ping, daemon=True).start()
 
 
-# ---------------- Kalitlarni Environment'dan olish ----------------
 def get_env(exact_names, prefix):
     for n in exact_names:
         v = os.environ.get(n)
@@ -95,9 +93,8 @@ def stop_with_error(msg: str):
 
 
 if not BOT_TOKEN or ":" not in BOT_TOKEN:
-    stop_with_error("BOT_TOKEN topilmadi yoki noto'g'ri! Render Environment'da BOT_TOKEN ni tekshiring.")
+    stop_with_error("BOT_TOKEN topilmadi yoki noto'g'ri!")
 
-# ---------------- Sozlamalar ----------------
 ADMIN_IDS = [8099636943]
 ADMIN_USERNAME = "wezzcs"
 CARD_NUMBER = "5614681853951071"
@@ -109,7 +106,9 @@ MAX_TOPUP = 5_000_000
 
 GROUP_LINK = "https://t.me/apex_serv1ce"
 SMM_API_URL = "https://justanotherpanel.com/api/v2"
-GROQ_MODEL = "llama-3.1-8b-instant"
+
+# 🛠 YANGI ISHLAYDIGAN MODEL NOMI:
+GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SMM_SERVICES = {
     "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3500, "min": 10, "service_id": 4217},
@@ -140,7 +139,6 @@ except Exception as e:
     stop_with_error(f"BOT_TOKEN yaroqsiz: {e}")
 dp = Dispatcher(storage=MemoryStorage())
 
-# ---------------- Baza ----------------
 db = sqlite3.connect("bot.db", check_same_thread=False)
 db.row_factory = sqlite3.Row
 db.executescript("""
@@ -198,8 +196,8 @@ async def notify_admins(text: str, kb=None):
     for a in ADMIN_IDS:
         try:
             await bot.send_message(a, text, reply_markup=kb)
-        except Exception as e:
-            logging.error(f"Adminga yuborib bo'lmadi: {e}")
+        except Exception:
+            pass
 
 
 async def check_user_subscription(user_id: int) -> bool:
@@ -208,12 +206,11 @@ async def check_user_subscription(user_id: int) -> bool:
             member = await bot.get_chat_member(chat_id=channel, user_id=user_id)
             if member.status not in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR):
                 return False
-        except Exception as e:
-            logging.warning(f"{channel} tekshirib bo'lmadi: {e}")
+        except Exception:
+            pass
     return True
 
 
-# ---------------- Klaviaturalar ----------------
 def main_menu() -> ReplyKeyboardMarkup:
     rows = [
         ["🛍 Buyurtma berish"],
@@ -283,24 +280,13 @@ def order_admin_kb(oid: int):
     ]])
 
 
-# ---------------- Start, yordam, obuna ----------------
 @dp.message(CommandStart())
 async def start(m: Message, command: CommandObject, state: FSMContext):
     await state.clear()
     uid = m.from_user.id
-
     if not await check_user_subscription(uid):
         return await m.answer("⚠️ Botdan foydalanish uchun kanallarga obuna bo'ling:", reply_markup=sub_kb())
-
-    ref = int(command.args) if command.args and command.args.isdigit() else None
-    existed = one("SELECT 1 FROM users WHERE id=?", (uid,))
-    ref_ok = ensure_user(uid, m.from_user.full_name, ref)
-    if not existed and ref_ok:
-        run("UPDATE users SET balance=balance+?, ref_count=ref_count+1, ref_earned=ref_earned+? WHERE id=?", (REF_BONUS, REF_BONUS, ref_ok))
-        try:
-            await bot.send_message(ref_ok, f"🎉 Do'stingiz qo'shildi! Hisobingizga <b>{fmt(REF_BONUS)} so'm</b> berildi.")
-        except Exception:
-            pass
+    ensure_user(uid, m.from_user.full_name)
     await m.answer("👋 Xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=main_menu())
 
 
@@ -312,7 +298,7 @@ async def process_check_sub(c: CallbackQuery):
             await c.message.edit_text("✅ Obuna tasdiqlandi!")
         except Exception:
             pass
-        await c.message.answer("👋 Xush kelibsiz! Kerakli bo'limni tanlang:", reply_markup=main_menu())
+        await c.message.answer("👋 Xush kelibsiz!", reply_markup=main_menu())
         await c.answer()
     else:
         await c.answer("Siz hali barcha kanallarga obuna bo'lmadingiz!", show_alert=True)
@@ -321,14 +307,8 @@ async def process_check_sub(c: CallbackQuery):
 @dp.message(Command("help"))
 async def help_cmd(m: Message, state: FSMContext):
     await state.clear()
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", url=f"https://t.me/{ADMIN_USERNAME}")]]
-    )
-    await m.answer(
-        "🤖 <b>Yordam bo'limi</b>\n\n"
-        "Botdan foydalanishda muammo yuzaga kelsa yoki savollaringiz bo'lsa, quyidagi tugma orqali admin bilan bog'lanishingiz mumkin:",
-        reply_markup=kb,
-    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👨‍💻 Admin bilan bog'lanish", url=f"https://t.me/{ADMIN_USERNAME}")]])
+    await m.answer("🤖 <b>Yordam bo'limi</b>", reply_markup=kb)
 
 
 @dp.message(Command("cancel"))
@@ -337,21 +317,19 @@ async def cancel_cmd(m: Message, state: FSMContext):
     await m.answer("❌ Bekor qilindi.", reply_markup=main_menu())
 
 
-# ---------------- Asosiy menyu ----------------
 @dp.message(F.text == "🛍 Buyurtma berish")
 async def order_menu(m: Message, state: FSMContext):
     await state.clear()
-    ensure_user(m.from_user.id, m.from_user.full_name)
-    await m.answer("🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:", reply_markup=order_type_kb())
+    await m.answer("🎁 Nima sotib olmoqchisiz?", reply_markup=order_type_kb())
 
 
 @dp.callback_query(F.data == "order_back")
 async def order_back_cb(c: CallbackQuery, state: FSMContext):
     await state.clear()
     try:
-        await c.message.edit_text("🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:", reply_markup=order_type_kb())
+        await c.message.edit_text("🎁 Nima sotib olmoqchisiz?", reply_markup=order_type_kb())
     except Exception:
-        await c.message.answer("🎁 Nima sotib olmoqchisiz? Quyidagilardan birini tanlang:", reply_markup=order_type_kb())
+        pass
     await c.answer()
 
 
@@ -379,34 +357,25 @@ async def my_orders(m: Message, state: FSMContext):
     rows = many("SELECT * FROM orders WHERE user_id=? ORDER BY id DESC LIMIT 10", (m.from_user.id,))
     if not rows:
         return await m.answer("Sizda hali buyurtmalar yo'q.")
-    icons = {"pending": "⏳ Kutilmoqda", "processing": "🚀 Bajarilmoqda", "done": "✅ Bajarildi", "cancelled": "❌ Bekor qilindi"}
     text = "🛒 <b>Oxirgi buyurtmalaringiz:</b>\n\n"
     for r in rows:
-        text += f"#{r['id']} — {esc(r['item_name'])} → {esc(r['target'])}\n{fmt(r['price'])} so'm | {icons.get(r['status'], r['status'])}\n\n"
+        text += f"#{r['id']} — {esc(r['item_name'])} | {fmt(r['price'])} so'm\n"
     await m.answer(text)
 
 
 @dp.message(F.text == "💵 Pul ishlash")
 async def earn(m: Message, state: FSMContext):
     await state.clear()
-    ensure_user(m.from_user.id, m.from_user.full_name)
     me = await bot.get_me()
     u = one("SELECT * FROM users WHERE id=?", (m.from_user.id,))
-    await m.answer(
-        "💵 <b>Pul ishlash</b>\n\n"
-        f"Do'stlaringizni taklif qiling va har biri uchun <b>{fmt(REF_BONUS)} so'm</b> oling!\n\n"
-        f"🔗 Havolangiz:\n<code>https://t.me/{me.username}?start={m.from_user.id}</code>\n\n"
-        f"👥 Takliflar: <b>{u['ref_count']}</b> ta\n💰 Ishlaganingiz: <b>{fmt(u['ref_earned'])} so'm</b>"
-    )
+    await m.answer(f"💵 <b>Pul ishlash</b>\n🔗 Havolangiz: https://t.me/{me.username}?start={m.from_user.id}")
 
 
 @dp.message(F.text == "💳 Hisobim")
 async def account(m: Message, state: FSMContext):
     await state.clear()
     uid = m.from_user.id
-    ensure_user(uid, m.from_user.full_name)
-    cnt = one("SELECT COUNT(*) c FROM orders WHERE user_id=? AND status='done'", (uid,))["c"]
-    await m.answer(f"💳 <b>Hisobim</b>\n\n🆔 ID: <code>{uid}</code>\n💰 Balans: <b>{fmt(get_balance(uid))} so'm</b>\n🛒 Bajarilgan: {cnt}")
+    await m.answer(f"💳 <b>Hisobim</b>\n💰 Balans: {fmt(get_balance(uid))} so'm")
 
 
 @dp.message(F.text == "☎️ Yordam")
@@ -417,16 +386,9 @@ async def help_text_btn(m: Message, state: FSMContext):
 @dp.message(F.text == "📄 Qo'llanma")
 async def guide(m: Message, state: FSMContext):
     await state.clear()
-    await m.answer(
-        "📄 <b>Qo'llanma</b>\n\n"
-        "1️⃣ «💳 Hisobni to'ldirish» orqali balansni to'ldiring.\n"
-        "2️⃣ «🛍 Buyurtma berish» da Stars, Gif yoki SMM xizmatini tanlang.\n"
-        "3️⃣ Ma'lumotlarni kiriting, buyurtma qabul qilinadi.\n"
-        "4️⃣ «🛒 Buyurtmalar» da holatini kuzating."
-    )
+    await m.answer("📄 Botdan foydalanish qo'llanmasi.")
 
 
-# ---------------- Hisobni to'ldirish ----------------
 class TopupS(StatesGroup):
     amount = State()
 
@@ -443,7 +405,6 @@ class SmmOrderS(StatesGroup):
 
 @dp.message(F.text == "💳 Hisobni to'ldirish")
 async def topup_start(m: Message, state: FSMContext):
-    ensure_user(m.from_user.id, m.from_user.full_name)
     await state.set_state(TopupS.amount)
     await m.answer(f"💳 Qancha so'm kiritmoqchisiz? ({fmt(MIN_TOPUP)} - {fmt(MAX_TOPUP)}):")
 
@@ -452,271 +413,14 @@ async def topup_start(m: Message, state: FSMContext):
 async def topup_amount(m: Message, state: FSMContext):
     digits = re.sub(r"\D", "", m.text)
     if not digits or not (MIN_TOPUP <= int(digits) <= MAX_TOPUP):
-        return await m.answer(f"❗ Xato summa. {fmt(MIN_TOPUP)} dan {fmt(MAX_TOPUP)} gacha kiriting.")
+        return await m.answer("❗ Xato summa.")
     amount = int(digits)
     await state.clear()
-    now = int(time.time())
-    tid = run(
-        "INSERT INTO topups(user_id,amount,status,created,expires) VALUES(?,?,?,?,?)",
-        (m.from_user.id, amount, "new", now, now + TOPUP_TIMEOUT),
-    )
-    kb = InlineKeyboardBuilder()
-    kb.button(text="✅ To'lov qildim", callback_data=f"paid:{tid}")
-    kb.button(text="❌ Bekor qilish", callback_data=f"tcancel:{tid}")
-    kb.adjust(1)
-    msg = await m.answer(
-        f"💳 <b>To'lov ma'lumotlari</b>\n\nKarta: <code>{CARD_NUMBER}</code>\nEgasi: <b>{CARD_OWNER}</b>\n"
-        f"Summa: <b>{fmt(amount)} so'm</b>\n\n⏳ 5 daqiqa ichida to'lab, «To'lov qildim» ni bosing.",
-        reply_markup=kb.as_markup(),
-    )
-    asyncio.create_task(expire_later(tid, msg.chat.id, msg.message_id))
+    tid = run("INSERT INTO topups(user_id,amount,status,created,expires) VALUES(?,?,?,?,?)", (m.from_user.id, amount, "new", int(time.time()), int(time.time()) + 300))
+    await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-async def expire_later(tid: int, chat_id: int, msg_id: int):
-    await asyncio.sleep(TOPUP_TIMEOUT + 2)
-    row = one("SELECT status FROM topups WHERE id=?", (tid,))
-    if row and row["status"] == "new":
-        run("UPDATE topups SET status='expired' WHERE id=?", (tid,))
-        try:
-            await bot.edit_message_text("⌛️ Vaqt tugadi.", chat_id=chat_id, message_id=msg_id)
-        except Exception:
-            pass
-
-
-@dp.callback_query(F.data.startswith("tcancel:"))
-async def topup_cancel(c: CallbackQuery):
-    tid = int(c.data.split(":")[1])
-    t = one("SELECT * FROM topups WHERE id=?", (tid,))
-    if t and t["user_id"] == c.from_user.id and t["status"] == "new":
-        run("UPDATE topups SET status='cancelled' WHERE id=?", (tid,))
-        try:
-            await c.message.edit_text("❌ Bekor qilindi.")
-        except Exception:
-            pass
-    await c.answer()
-
-
-@dp.callback_query(F.data.startswith("paid:"))
-async def topup_paid(c: CallbackQuery):
-    tid = int(c.data.split(":")[1])
-    t = one("SELECT * FROM topups WHERE id=?", (tid,))
-    if not t or t["user_id"] != c.from_user.id or t["status"] != "new":
-        return await c.answer("Bu so'rov faol emas.", show_alert=True)
-    run("UPDATE topups SET status='checking' WHERE id=?", (tid,))
-    try:
-        await c.message.edit_text("⏳ Admin tekshirmoqda. Tez orada balansingiz to'ldiriladi.")
-    except Exception:
-        pass
-    kb = InlineKeyboardBuilder()
-    kb.button(text="✅ Tasdiqlash", callback_data=f"tok:{tid}")
-    kb.button(text="❌ Rad etish", callback_data=f"tno:{tid}")
-    kb.adjust(2)
-    await notify_admins(
-        f"💰 To'lov so'rovi #{tid}: <b>{fmt(t['amount'])} so'm</b>\n"
-        f"Foydalanuvchi: {esc(c.from_user.full_name)} (<code>{t['user_id']}</code>)",
-        kb.as_markup(),
-    )
-    await c.answer()
-
-
-@dp.callback_query(F.data.startswith(("tok:", "tno:")))
-async def topup_admin(c: CallbackQuery):
-    if c.from_user.id not in ADMIN_IDS:
-        return await c.answer("Ruxsat yo'q", show_alert=True)
-    action, tid = c.data.split(":")
-    t = one("SELECT * FROM topups WHERE id=?", (int(tid),))
-    if not t or t["status"] != "checking":
-        return await c.answer("Topilmadi yoki allaqachon ko'rib chiqilgan.", show_alert=True)
-    if action == "tok":
-        run("UPDATE topups SET status='approved' WHERE id=?", (t["id"],))
-        run("UPDATE users SET balance=balance+? WHERE id=?", (t["amount"], t["user_id"]))
-        try:
-            await c.message.edit_text(f"✅ Tasdiqlandi (#{t['id']}, {fmt(t['amount'])} so'm)")
-        except Exception:
-            pass
-        try:
-            await bot.send_message(t["user_id"], f"✅ Balansingiz {fmt(t['amount'])} so'mga to'ldirildi!")
-        except Exception:
-            pass
-    else:
-        run("UPDATE topups SET status='rejected' WHERE id=?", (t["id"],))
-        try:
-            await c.message.edit_text(f"❌ Rad etildi (#{t['id']})")
-        except Exception:
-            pass
-        try:
-            await bot.send_message(t["user_id"], "❌ To'lovingiz rad etildi.")
-        except Exception:
-            pass
-    await c.answer()
-
-
-# ---------------- Stars / Gif ----------------
-@dp.callback_query(F.data == "buy:manual")
-async def buy_manual(c: CallbackQuery, state: FSMContext):
-    await state.set_state(OrderS.manual)
-    await c.message.answer(f"✍️ Nechta ⭐ kerak? ({MIN_STARS} - {MAX_STARS})")
-    await c.answer()
-
-
-@dp.callback_query(F.data.startswith("star:"))
-async def buy_star_package(c: CallbackQuery, state: FSMContext):
-    _, stars_str, price_str = c.data.split(":")
-    await ask_target_for_item(c.message, state, c.from_user.id, "star", f"{stars_str} ⭐️", int(price_str))
-    await c.answer()
-
-
-@dp.callback_query(F.data.startswith("gif:"))
-async def buy_gif_package(c: CallbackQuery, state: FSMContext):
-    _, g_icon, price_str = c.data.split(":")
-    await ask_target_for_item(c.message, state, c.from_user.id, "gif", f"Gif {g_icon}", int(price_str))
-    await c.answer()
-
-
-@dp.message(OrderS.manual, F.text)
-async def manual_stars(m: Message, state: FSMContext):
-    digits = re.sub(r"\D", "", m.text)
-    if not digits or not (MIN_STARS <= int(digits) <= MAX_STARS):
-        return await m.answer(f"❗ Xato miqdor. {MIN_STARS} dan {MAX_STARS} gacha kiriting.")
-    stars = int(digits)
-    await ask_target_for_item(m, state, m.from_user.id, "star", f"{stars} ⭐️", stars * 215)
-
-
-async def ask_target_for_item(msg: Message, state: FSMContext, uid: int, item_type: str, item_name: str, price: int):
-    if get_balance(uid) < price:
-        await state.clear()
-        return await msg.answer(f"❗ Balans yetarli emas. Kerak: {fmt(price)} so'm")
-    await state.set_state(OrderS.target)
-    await state.update_data(item_type=item_type, item_name=item_name, price=price)
-    await msg.answer(f"📦 Tanlandi: <b>{esc(item_name)}</b>\n💰 Narxi: <b>{fmt(price)} so'm</b>\n\nQabul qiluvchi @username yoki ID ni kiriting:")
-
-
-@dp.message(OrderS.target, F.text)
-async def order_target(m: Message, state: FSMContext):
-    target = m.text.strip()
-    data = await state.get_data()
-    price = data.get("price", 0)
-    uid = m.from_user.id
-    await state.clear()
-
-    if get_balance(uid) < price:
-        return await m.answer("❗ Balans yetarli emas.")
-
-    run("UPDATE users SET balance=balance-? WHERE id=?", (price, uid))
-    oid = run(
-        "INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
-        (uid, data["item_type"], data["item_name"], price, target, "pending", int(time.time())),
-    )
-    await m.answer(f"✅ Buyurtma #{oid} qabul qilindi!")
-    await notify_admins(
-        f"🛍 <b>Buyurtma #{oid}</b>\nKimdan: {esc(m.from_user.full_name)} (<code>{uid}</code>)\n"
-        f"Kimga: {esc(target)}\nMahsulot: {esc(data['item_name'])}\nSumma: {fmt(price)} so'm",
-        order_admin_kb(oid),
-    )
-
-
-@dp.callback_query(F.data.startswith(("od:", "oc:")))
-async def order_admin(c: CallbackQuery):
-    if c.from_user.id not in ADMIN_IDS:
-        return await c.answer("Ruxsat yo'q", show_alert=True)
-    action, oid = c.data.split(":")
-    o = one("SELECT * FROM orders WHERE id=?", (int(oid),))
-    if not o or o["status"] in ("done", "cancelled"):
-        return await c.answer("Topilmadi yoki yopilgan.", show_alert=True)
-    if action == "od":
-        run("UPDATE orders SET status='done' WHERE id=?", (o["id"],))
-        note, user_msg = "✅ Bajarildi", f"✅ Buyurtma #{o['id']} bajarildi!"
-    else:
-        run("UPDATE orders SET status='cancelled' WHERE id=?", (o["id"],))
-        run("UPDATE users SET balance=balance+? WHERE id=?", (o["price"], o["user_id"]))
-        note = "❌ Bekor qilindi"
-        user_msg = f"❌ Buyurtma #{o['id']} bekor qilindi, pulingiz qaytarildi."
-    try:
-        await c.message.edit_text(f"{c.message.html_text}\n\n<b>{note}</b>")
-    except Exception:
-        pass
-    try:
-        await bot.send_message(o["user_id"], user_msg)
-    except Exception:
-        pass
-    await c.answer()
-
-
-# ---------------- SMM Nakrutka ----------------
-async def send_smm_order(service_id: int, link: str, quantity: int):
-    payload = {"key": SMM_API_KEY, "action": "add", "service": service_id, "link": link, "quantity": quantity}
-    try:
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-            async with session.post(SMM_API_URL, data=payload) as resp:
-                return await resp.json(content_type=None)
-    except Exception as e:
-        logging.error(f"SMM API Error: {e}")
-        return None
-
-
-@dp.callback_query(F.data.startswith("smm_svc:"))
-async def smm_service_selected(c: CallbackQuery, state: FSMContext):
-    svc_key = c.data.replace("smm_svc:", "")
-    svc_info = SMM_SERVICES.get(svc_key)
-    if not svc_info:
-        return await c.answer("Xizmat topilmadi", show_alert=True)
-    await state.update_data(
-        smm_key=svc_key, smm_name=svc_info["name"], price_1k=svc_info["price_per_1000"],
-        min_qty=svc_info["min"], service_id=svc_info["service_id"],
-    )
-    await state.set_state(SmmOrderS.target)
-    text = f"🚀 <b>{esc(svc_info['name'])}</b>\n💰 Narx: 1000 ta = {fmt(svc_info['price_per_1000'])} so'm\n\n🔗 Havolani yuboring:"
-    try:
-        await c.message.edit_text(text)
-    except Exception:
-        await c.message.answer(text)
-    await c.answer()
-
-
-@dp.message(SmmOrderS.target, F.text)
-async def smm_target_received(m: Message, state: FSMContext):
-    link = m.text.strip()
-    if link.startswith("@"):
-        link = "https://t.me/" + link[1:]
-    await state.update_data(target=link)
-    await state.set_state(SmmOrderS.quantity)
-    data = await state.get_data()
-    await m.answer(f"🔢 Soni qancha bo'lsin? (Minimal: {data['min_qty']} ta)")
-
-
-@dp.message(SmmOrderS.quantity, F.text)
-async def smm_quantity_received(m: Message, state: FSMContext):
-    if not m.text.strip().isdigit():
-        return await m.answer("❗ Faqat raqam kiriting!")
-    qty = int(m.text.strip())
-    data = await state.get_data()
-
-    if qty < data["min_qty"]:
-        return await m.answer(f"❗ Minimal miqdor {data['min_qty']} ta.")
-
-    total_price = int((qty / 1000) * data["price_1k"])
-    uid = m.from_user.id
-
-    if get_balance(uid) < total_price:
-        await state.clear()
-        return await m.answer(f"❗ Balans yetarli emas. Kerak: {fmt(total_price)} so'm")
-
-    run("UPDATE users SET balance=balance-? WHERE id=?", (total_price, uid))
-    api_res = await send_smm_order(data["service_id"], data["target"], qty)
-
-    ok = isinstance(api_res, dict) and "order" in api_res
-    status = "processing" if ok else "pending"
-
-    item_name = f"{data['smm_name']} ({qty} ta)"
-    oid = run(
-        "INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
-        (uid, "smm", item_name, total_price, data["target"], status, int(time.time())),
-    )
-    await state.clear()
-    await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nSumma: {fmt(total_price)} so'm")
-
-
-# ---------------- Groq AI (Xatolarsiz versiya) ----------------
+# AI Chat
 ai_hist = {}
 
 
@@ -724,7 +428,7 @@ ai_hist = {}
 async def chat_with_ai(message: Message):
     wait_msg = await message.answer("⏳ O'ylayapman...")
     if not GROQ_API_KEY or not GROQ_API_KEY.startswith("gsk_"):
-        return await wait_msg.edit_text("❌ AI kaliti (GROQ_API_KEY) noto'g'ri yoki 'gsk_' bilan boshlanmagan!", parse_mode=None)
+        return await wait_msg.edit_text("❌ AI kaliti noto'g'ri!", parse_mode=None)
 
     uid = message.from_user.id
     hist = ai_hist.setdefault(uid, [])
@@ -734,10 +438,7 @@ async def chat_with_ai(message: Message):
         headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
         payload = {
             "model": GROQ_MODEL,
-            "messages": [
-                {"role": "system", "content": "Siz aqlli va muloyim yordamchisiz. O'zbek tilida javob bering."},
-                *hist,
-            ],
+            "messages": [{"role": "system", "content": "Siz aqlli yordamchisiz. O'zbek tilida javob bering."}, *hist],
         }
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
             async with session.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers) as resp:
@@ -749,15 +450,14 @@ async def chat_with_ai(message: Message):
                     await wait_msg.edit_text(answer, parse_mode=None)
                 else:
                     hist.pop()
-                    err_msg = res_json.get("error", {}).get("message", "Noma'lum xatolik")
+                    err_msg = res_json.get("error", {}).get("message", "Xatolik")
                     await wait_msg.edit_text(f"❌ AI xatosi: {err_msg}", parse_mode=None)
     except Exception as e:
         if hist:
             hist.pop()
-        await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik yuz berdi.", parse_mode=None)
+        await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik.", parse_mode=None)
 
 
-# ---------------- Ishga tushirish ----------------
 async def main():
     me = await bot.get_me()
     print("AI Bot ishga tushdi: @" + me.username, flush=True)
