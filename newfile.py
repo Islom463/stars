@@ -54,7 +54,8 @@ def self_ping():
 
 threading.Thread(target=self_ping, daemon=True).start()
 
-BOT_TOKEN = "9278626308:AAGIVO-g2F6cz2OnQX4vaWx6jGeDkwO8O44"
+# Yangilangan bot tokeni
+BOT_TOKEN = "9278626308:AAFf4jlntLr_okH3j5mdc7IzkDiVct2h9J8"
 ADMIN_IDS = [8099636943]
 ADMIN_USERNAME = "wezzcs"
 CARD_NUMBER = "5614681853951071"
