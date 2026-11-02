@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va SMM Nakrutka boti - To'liq yakuniy ishlaydigan versiya
+Telegram Stars, Gif va SMM Nakrutka boti - To'liq tayyor versiya (Gemini-Pro qo'llab-quvvatlaydi)
 """
 import os
 import html
@@ -489,7 +489,7 @@ async def topup_amount(m: Message, state: FSMContext):
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# --- GOOGLE GEMINI AI CHAT (Muvaffaqiyatli ishlaydigan v1 endpoint va gemini-1.5-flash) ---
+# --- GOOGLE GEMINI AI CHAT (To'g'rilangan gemini-pro va v1 versiya) ---
 ai_hist = {}
 
 
@@ -505,8 +505,8 @@ async def chat_with_gemini(message: Message):
     del hist[:-8]
 
     try:
-        # v1 endpoint va gemini-1.5-flash to'g'ri sozlangan
-        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # v1 endpoint va gemini-pro modeli to'g'ri sozlangan
+        url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": hist}
         
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
