@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - AI Integratsiyalashgan Versiya
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Xavfsiz va To'g'rilangan AI Versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -11,7 +11,6 @@ import asyncio
 import logging
 import re
 import sqlite3
-import openai
 
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
@@ -55,7 +54,6 @@ def self_ping():
 
 threading.Thread(target=self_ping, daemon=True).start()
 
-# Bot tokeni va SMM kaliti
 BOT_TOKEN = "9278626308:AAGDU2XEpdeTWtrchHgozBc3JELAdxpCNBo"
 SMM_API_KEY = os.environ.get("SMM_API_KEY", "c2dfb84fb27ca501b995388e7b39fa97")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
@@ -70,11 +68,8 @@ MIN_TOPUP = 1000
 MAX_TOPUP = 5_000_000
 
 GROUP_LINK = "https://t.me/apex_serv1ce"
-
-# JAP API sozlamalari
 SMM_API_URL = "https://justanotherpanel.com/api/v2"
 
-# Barcha xizmat narxlariga 500 so'mdan qo'shib chiqildi
 SMM_SERVICES = {
     "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3500, "min": 10, "service_id": 4217},
     "smm_ig_views": {"name": "🎬 IG Reels ko'rish", "price_per_1000": 700, "min": 100, "service_id": 4},
@@ -101,9 +96,6 @@ CHANNELS = ["@panjiyev_24", "@apex_server_b0t"]
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
-
-# OpenAI mijozini sozlash
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 db = sqlite3.connect("bot.db", check_same_thread=False)
 db.row_factory = sqlite3.Row
@@ -578,25 +570,35 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     await state.clear()
     await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
 
-# --- SUN'IY INTELLEKT (CHATGPT) QISMI ---
+# --- TO'G'RILANGAN OPENAI CHAT QISMI ---
 @dp.message(F.text)
 async def chat_with_ai(message: Message):
-    # Bu qism faqat boshqa tugmalar yoki bosqichlarda bo'lmagan oddiy matnli xabarlarga javob beradi
     wait_msg = await message.answer("⏳ O'ylayapman...")
-    
     try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz."},
-                {"role": "user", "content": message.text}
-            ]
-        )
-        answer = response.choices[0].message.content
-        await wait_msg.edit_text(answer)
+        async with aiohttp.ClientSession() as session:
+            headers = {
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json"
+            }
+            payload = {
+                "model": "gpt-3.5-turbo",
+                "messages": [
+                    {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz."},
+                    {"role": "user", "content": message.text}
+                ]
+            }
+            async with session.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers) as resp:
+                res_json = await resp.json()
+                if resp.status == 200 and "choices" in res_json:
+                    answer = res_json["choices"][0]["message"]["content"]
+                    await wait_msg.edit_text(answer)
+                else:
+                    err_msg = res_json.get("error", {}).get("message", "Noma'lum xatolik")
+                    logging.error(f"OpenAI API error: {err_msg}")
+                    await wait_msg.edit_text(f"❌ OpenAI xatosi: {err_msg}")
     except Exception as e:
-        logging.error(f"OpenAI xatoligi: {e}")
-        await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik yuz berdi. Keyinroq urinib ko'ring.")
+        logging.error(f"AI Connection Error: {e}")
+        await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik yuz berdi.")
 
 async def main():
     me = await bot.get_me()
