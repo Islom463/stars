@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Xavfsiz va To'g'rilangan AI Versiya
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - To'liq To'g'rilangan Versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -570,7 +570,7 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     await state.clear()
     await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
 
-# --- TO'G'RILANGAN OPENAI CHAT QISMI ---
+# --- YANGILANGAN OPENAI CHAT QISMI (GPT-4O-MINI) ---
 @dp.message(F.text)
 async def chat_with_ai(message: Message):
     wait_msg = await message.answer("⏳ O'ylayapman...")
@@ -581,7 +581,7 @@ async def chat_with_ai(message: Message):
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "gpt-3.5-turbo",
+                "model": "gpt-4o-mini",
                 "messages": [
                     {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz."},
                     {"role": "user", "content": message.text}
