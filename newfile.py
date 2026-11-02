@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va SMM Nakrutka boti - Google Gemini AI versiya
+Telegram Stars, Gif va SMM Nakrutka boti - To'liq yakuniy ishlaydigan versiya
 """
 import os
 import html
@@ -232,7 +232,7 @@ def order_type_kb():
 
 
 def stars_packages_kb():
-    rows = [[InlineKeyboardButton(text="✍️ Qo'lda hisoblash", callback_data="buy:manual")]]
+    rows = []
     row = []
     for stars, price in STARS_PACKAGES:
         row.append(InlineKeyboardButton(text=f"{stars} ⭐️ ({fmt(price)} so'm)", callback_data=f"star:{stars}:{price}"))
@@ -348,6 +348,89 @@ async def order_smm_cb(c: CallbackQuery):
     await c.answer()
 
 
+# --- BUYURTMA BERISH VA BALANS TEKSHIRISH ---
+class OrderState(StatesGroup):
+    waiting_target = State()
+
+
+@dp.callback_query(F.data.startswith("smm_svc:"))
+async def choose_smm_service(c: CallbackQuery, state: FSMContext):
+    svc_key = c.data.split(":")[1]
+    svc = SMM_SERVICES.get(svc_key)
+    if not svc:
+        return await c.answer("Xizmat topilmadi!", show_alert=True)
+    await state.update_data(item_type="smm", item_name=svc["name"], price=svc["price_per_1000"])
+    await state.set_state(OrderState.waiting_target)
+    await c.message.answer(f"📦 <b>{svc['name']}</b>\n\n🔗 Buyurtma uchun havolani (linkni) yuboring:")
+    await c.answer()
+
+
+@dp.callback_query(F.data.startswith("star:"))
+async def choose_star_package(c: CallbackQuery, state: FSMContext):
+    _, stars, price = c.data.split(":")
+    stars, price = int(stars), int(price)
+    item_name = f"{stars} ⭐️ Stars"
+    await state.update_data(item_type="stars", item_name=item_name, price=price)
+    await state.set_state(OrderState.waiting_target)
+    await c.message.answer(f"⭐ <b>{item_name}</b>\n\n👤 Telegram usernameingizni yuboring (masalan: @username):")
+    await c.answer()
+
+
+@dp.callback_query(F.data.startswith("gif:"))
+async def choose_gif_package(c: CallbackQuery, state: FSMContext):
+    _, g_icon, g_price = c.data.split(":")
+    price = int(g_price)
+    item_name = f"Sovg'a Gif {g_icon}"
+    await state.update_data(item_type="gif", item_name=item_name, price=price)
+    await state.set_state(OrderState.waiting_target)
+    await c.message.answer(f"🎁 <b>{item_name}</b>\n\n👤 Username yoki ID yuboring:")
+    await c.answer()
+
+
+@dp.message(OrderState.waiting_target, F.text)
+async def process_order_target(m: Message, state: FSMContext):
+    target = m.text.strip()
+    data = await state.get_data()
+    item_type = data.get("item_type")
+    item_name = data.get("item_name")
+    price = data.get("price")
+    await state.clear()
+
+    uid = m.from_user.id
+    bal = get_balance(uid)
+
+    if bal < price:
+        return await m.answer(
+            f"❌ <b>Balansingiz yetarli emas!</b>\n\n"
+            f"💰 Kerakli summa: {fmt(price)} so'm\n"
+            f"💳 Sizning balansingiz: {fmt(bal)} so'm\n\n"
+            f"Iltimos, avval hisobni to'ldiring:",
+            reply_markup=main_menu()
+        )
+
+    run("UPDATE users SET balance = balance - ? WHERE id=?", (price, uid))
+    oid = run("INSERT INTO orders(user_id, item_type, item_name, price, target, status, created) VALUES(?,?,?,?,?,?,?)",
+              (uid, item_type, item_name, price, target, "pending", int(time.time())))
+
+    await m.answer(
+        f"✅ <b>Buyurtmangiz qabul qilindi! (#{oid})</b>\n\n"
+        f"📦 Xizmat: {item_name}\n"
+        f"🎯 Manzil: {esc(target)}\n"
+        f"💵 Narxi: {fmt(price)} so'm\n\n"
+        f"Tez orada bajariladi!",
+        reply_markup=main_menu()
+    )
+
+    await notify_admins(
+        f"🔔 <b>Yangi buyurtma! (#{oid})</b>\n\n"
+        f"👤 Foydalanuvchi: <a href='tg://user?id={uid}'>{esc(m.from_user.full_name)}</a> (<code>{uid}</code>)\n"
+        f"📦 Turi: {item_name}\n"
+        f"🔗 Manzil: {esc(target)}\n"
+        f"💵 Narxi: {fmt(price)} so'm",
+        order_admin_kb(oid)
+    )
+
+
 @dp.message(F.text == "🛒 Buyurtmalar")
 async def my_orders(m: Message, state: FSMContext):
     await state.clear()
@@ -364,7 +447,6 @@ async def my_orders(m: Message, state: FSMContext):
 async def earn(m: Message, state: FSMContext):
     await state.clear()
     me = await bot.get_me()
-    u = one("SELECT * FROM users WHERE id=?", (m.from_user.id,))
     await m.answer(f"💵 <b>Pul ishlash</b>\n🔗 Havolangiz: https://t.me/{me.username}?start={m.from_user.id}")
 
 
@@ -390,16 +472,6 @@ class TopupS(StatesGroup):
     amount = State()
 
 
-class OrderS(StatesGroup):
-    manual = State()
-    target = State()
-
-
-class SmmOrderS(StatesGroup):
-    target = State()
-    quantity = State()
-
-
 @dp.message(F.text == "💳 Hisobni to'ldirish")
 async def topup_start(m: Message, state: FSMContext):
     await state.set_state(TopupS.amount)
@@ -417,7 +489,7 @@ async def topup_amount(m: Message, state: FSMContext):
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# --- Google Gemini AI Chat (v1 versiyaga to'g'rilandi) ---
+# --- GOOGLE GEMINI AI CHAT (Muvaffaqiyatli ishlaydigan v1 endpoint va gemini-1.5-flash) ---
 ai_hist = {}
 
 
@@ -433,7 +505,7 @@ async def chat_with_gemini(message: Message):
     del hist[:-8]
 
     try:
-        # v1 ga o'zgartirildi
+        # v1 endpoint va gemini-1.5-flash to'g'ri sozlangan
         url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": hist}
         
