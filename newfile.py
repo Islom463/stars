@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va SMM Nakrutka boti - To'liq oxirgi versiya
+Telegram Stars, Gif va SMM Nakrutka boti - Optimallashtirilgan yakuniy versiya
 """
 import os
 import html
@@ -489,42 +489,41 @@ async def topup_amount(m: Message, state: FSMContext):
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# --- GOOGLE GEMINI AI CHAT (gemini-3.8-flash modeli) ---
+# --- GOOGLE GEMINI AI CHAT (Tezkor va optimallashtirilgan qism) ---
 ai_hist = {}
-
 
 @dp.message(StateFilter(None), F.text, ~F.text.startswith("/"))
 async def chat_with_gemini(message: Message):
-    wait_msg = await message.answer("⏳ O'ylayapman...")
+    wait_msg = await message.answer("🤖 Sun'iy intellekt o'ylamoqda...")
     if not GEMINI_API_KEY:
         return await wait_msg.edit_text("❌ Gemini API kaliti topilmadi!", parse_mode=None)
 
     uid = message.from_user.id
     hist = ai_hist.setdefault(uid, [])
     hist.append({"role": "user", "parts": [{"text": message.text}]})
-    del hist[:-8]
+    del hist[:-6]  # Xotirani kichikroq saqlash tezlikni oshiradi
 
     try:
-        # Xatoda talab qilingan gemini-3.8-flash modeli va v1beta
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": hist}
         
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+        # Timeout qisqartirildi, so'rov tezroq natija berishi uchun
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.post(url, json=payload) as resp:
                 res_json = await resp.json(content_type=None)
                 if resp.status == 200 and "candidates" in res_json:
                     answer = res_json["candidates"][0]["content"]["parts"][0]["text"][:4000]
                     hist.append({"role": "model", "parts": [{"text": answer}]})
-                    del hist[:-8]
+                    del hist[:-6]
                     await wait_msg.edit_text(answer, parse_mode=None)
                 else:
                     hist.pop()
-                    err_msg = res_json.get("error", {}).get("message", "Noma'lum xatolik")
-                    await wait_msg.edit_text(f"❌ AI xatosi: {err_msg}", parse_mode=None)
+                    err_msg = res_json.get("error", {}).get("message", "Juda ko'p yuklama, birozdan keyin urinib ko'ring")
+                    await wait_msg.edit_text(f"❌ AI javob berolmadi: {err_msg}", parse_mode=None)
     except Exception as e:
         if hist:
             hist.pop()
-        await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik.", parse_mode=None)
+        await wait_msg.edit_text("⚡ Tarmoqda vaqtinchalik kechikish, iltimos qaytadan yozing.", parse_mode=None)
 
 
 async def main():
