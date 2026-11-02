@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va SMM Nakrutka boti - Groq AI versiya
+Telegram Stars, Gif va SMM Nakrutka boti - Google Gemini AI versiya
 """
 import os
 import html
@@ -77,12 +77,13 @@ def get_env(exact_names, prefix):
 
 
 BOT_TOKEN = get_env(["BOT_TOKEN", "TELEGRAM_BOT_TOKEN", "TOKEN"], "BOT_")
-GROQ_API_KEY = get_env(["GROQ_API_KEY", "OPENAI_API_KEY"], "GROQ")
+# Endi Gemini yoki OpenAI kalitini o'qiydi
+GEMINI_API_KEY = get_env(["GEMINI_API_KEY", "OPENAI_API_KEY", "GROQ_API_KEY"], "GEMINI")
 SMM_API_KEY = get_env(["SMM_API_KEY"], "SMM")
 
 logging.info(
-    "Kalitlar: BOT=%s GROQ=%s SMM=%s",
-    bool(BOT_TOKEN), bool(GROQ_API_KEY), bool(SMM_API_KEY),
+    "Kalitlar: BOT=%s GEMINI=%s SMM=%s",
+    bool(BOT_TOKEN), bool(GEMINI_API_KEY), bool(SMM_API_KEY),
 )
 
 
@@ -106,9 +107,6 @@ MAX_TOPUP = 5_000_000
 
 GROUP_LINK = "https://t.me/apex_serv1ce"
 SMM_API_URL = "https://justanotherpanel.com/api/v2"
-
-# 🛠 YANGI ISHLAYDIGAN MODEL NOMI:
-GROQ_MODEL = "llama-3.3-70b-versatile"
 
 SMM_SERVICES = {
     "smm_ig_likes": {"name": "❤️ IG Layk (Kamayishlar 0%)", "price_per_1000": 3500, "min": 10, "service_id": 4217},
@@ -416,41 +414,40 @@ async def topup_amount(m: Message, state: FSMContext):
         return await m.answer("❗ Xato summa.")
     amount = int(digits)
     await state.clear()
-    tid = run("INSERT INTO topups(user_id,amount,status,created,expires) VALUES(?,?,?,?,?)", (m.from_user.id, amount, "new", int(time.time()), int(time.time()) + 300))
+    run("INSERT INTO topups(user_id,amount,status,created,expires) VALUES(?,?,?,?,?)", (m.from_user.id, amount, "new", int(time.time()), int(time.time()) + 300))
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# AI Chat
+# --- Google Gemini AI Chat ---
 ai_hist = {}
 
 
 @dp.message(StateFilter(None), F.text, ~F.text.startswith("/"))
-async def chat_with_ai(message: Message):
+async def chat_with_gemini(message: Message):
     wait_msg = await message.answer("⏳ O'ylayapman...")
-    if not GROQ_API_KEY or not GROQ_API_KEY.startswith("gsk_"):
-        return await wait_msg.edit_text("❌ AI kaliti noto'g'ri!", parse_mode=None)
+    if not GEMINI_API_KEY:
+        return await wait_msg.edit_text("❌ Gemini API kaliti topilmadi!", parse_mode=None)
 
     uid = message.from_user.id
     hist = ai_hist.setdefault(uid, [])
-    hist.append({"role": "user", "content": message.text})
+    hist.append({"role": "user", "parts": [{"text": message.text}]})
     del hist[:-8]
+
     try:
-        headers = {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": GROQ_MODEL,
-            "messages": [{"role": "system", "content": "Siz aqlli yordamchisiz. O'zbek tilida javob bering."}, *hist],
-        }
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        payload = {"contents": hist}
+        
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers) as resp:
+            async with session.post(url, json=payload) as resp:
                 res_json = await resp.json(content_type=None)
-                if resp.status == 200 and "choices" in res_json:
-                    answer = res_json["choices"][0]["message"]["content"][:4000]
-                    hist.append({"role": "assistant", "content": answer})
+                if resp.status == 200 and "candidates" in res_json:
+                    answer = res_json["candidates"][0]["content"]["parts"][0]["text"][:4000]
+                    hist.append({"role": "model", "parts": [{"text": answer}]})
                     del hist[:-8]
                     await wait_msg.edit_text(answer, parse_mode=None)
                 else:
                     hist.pop()
-                    err_msg = res_json.get("error", {}).get("message", "Xatolik")
+                    err_msg = res_json.get("error", {}).get("message", "Noma'lum xatolik")
                     await wait_msg.edit_text(f"❌ AI xatosi: {err_msg}", parse_mode=None)
     except Exception as e:
         if hist:
