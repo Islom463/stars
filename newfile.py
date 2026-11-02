@@ -1,5 +1,5 @@
 """
-Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Groq (Llama 3) Bepul AI Versiya
+Telegram Stars, Gif va Avtomatik SMM Nakrutka boti - Groq (Llama 3.3) Bepul AI Versiya
 """
 import os
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -570,7 +570,7 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     await state.clear()
     await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
 
-# --- GROQ (LLAMA 3) BEPUL AI QISMI ---
+# --- GROQ (LLAMA 3.3) BEPUL AI QISMI ---
 @dp.message(F.text)
 async def chat_with_ai(message: Message):
     wait_msg = await message.answer("⏳ O'ylayapman...")
@@ -581,7 +581,7 @@ async def chat_with_ai(message: Message):
                 "Content-Type": "application/json"
             }
             payload = {
-                "model": "llama3-70b-8192",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [
                     {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz. O'zbek tilida javob bering."},
                     {"role": "user", "content": message.text}
