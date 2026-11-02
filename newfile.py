@@ -1,6 +1,5 @@
 """
-Telegram Stars, Gif va SMM Nakrutka boti - Groq (Llama 3.1) AI versiya
-Kalitlar Render Environment'dan o'qiladi (nomi BOT_..., GROQ_..., SMM_... bilan boshlansa ham topadi).
+Telegram Stars, Gif va SMM Nakrutka boti - Groq AI versiya
 """
 import os
 import html
@@ -87,12 +86,9 @@ logging.info(
     "Kalitlar: BOT=%s GROQ=%s SMM=%s",
     bool(BOT_TOKEN), bool(GROQ_API_KEY), bool(SMM_API_KEY),
 )
-if GROQ_API_KEY and not GROQ_API_KEY.startswith("gsk_"):
-    logging.warning("GROQ kalit 'gsk_' bilan boshlanmayapti, noto'g'ri kalit bo'lishi mumkin!")
 
 
 def stop_with_error(msg: str):
-    """Xato bo'lsa ham servis yiqilmasin, logda sabab ko'rinib tursin."""
     while True:
         logging.error(msg)
         time.sleep(30)
@@ -213,24 +209,8 @@ async def check_user_subscription(user_id: int) -> bool:
             if member.status not in (ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR):
                 return False
         except Exception as e:
-            # Bot kanalda admin bo'lmasa shu xato chiqadi. Foydalanuvchini to'smaymiz.
-            logging.warning(f"{channel} tekshirib bo'lmadi (bot kanalga admin qilinmagan bo'lishi mumkin): {e}")
+            logging.warning(f"{channel} tekshirib bo'lmadi: {e}")
     return True
-
-
-# ---------------- Holatlar ----------------
-class TopupS(StatesGroup):
-    amount = State()
-
-
-class OrderS(StatesGroup):
-    manual = State()
-    target = State()
-
-
-class SmmOrderS(StatesGroup):
-    target = State()
-    quantity = State()
 
 
 # ---------------- Klaviaturalar ----------------
@@ -351,20 +331,13 @@ async def help_cmd(m: Message, state: FSMContext):
     )
 
 
-@dp.message(Command("join"))
-async def join_cmd(m: Message, state: FSMContext):
-    await state.clear()
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="👥 Guruhga qo'shilish 🚀", url=GROUP_LINK)]])
-    await m.answer("💬 Bizning rasmiy guruhimizga qo'shiling va boshqalar bilan muloqot qiling:", reply_markup=kb)
-
-
 @dp.message(Command("cancel"))
 async def cancel_cmd(m: Message, state: FSMContext):
     await state.clear()
     await m.answer("❌ Bekor qilindi.", reply_markup=main_menu())
 
 
-# ---------------- Asosiy menyu tugmalari ----------------
+# ---------------- Asosiy menyu ----------------
 @dp.message(F.text == "🛍 Buyurtma berish")
 async def order_menu(m: Message, state: FSMContext):
     await state.clear()
@@ -382,27 +355,22 @@ async def order_back_cb(c: CallbackQuery, state: FSMContext):
     await c.answer()
 
 
-async def _edit_or_send(c: CallbackQuery, text: str, kb):
-    try:
-        await c.message.edit_text(text, reply_markup=kb)
-    except Exception:
-        await c.message.answer(text, reply_markup=kb)
-    await c.answer()
-
-
 @dp.callback_query(F.data == "order:stars")
 async def order_stars_cb(c: CallbackQuery):
-    await _edit_or_send(c, "⭐ Stars miqdorini tanlang:", stars_packages_kb())
+    await c.message.edit_text("⭐ Stars miqdorini tanlang:", reply_markup=stars_packages_kb())
+    await c.answer()
 
 
 @dp.callback_query(F.data == "order:gifs")
 async def order_gifs_cb(c: CallbackQuery):
-    await _edit_or_send(c, "🎁 Kerakli gifni tanlang:", gifs_packages_kb())
+    await c.message.edit_text("🎁 Kerakli gifni tanlang:", reply_markup=gifs_packages_kb())
+    await c.answer()
 
 
 @dp.callback_query(F.data == "order:smm")
 async def order_smm_cb(c: CallbackQuery):
-    await _edit_or_send(c, "🚀 SMM xizmatini tanlang:", smm_services_kb())
+    await c.message.edit_text("🚀 SMM xizmatini tanlang:", reply_markup=smm_services_kb())
+    await c.answer()
 
 
 @dp.message(F.text == "🛒 Buyurtmalar")
@@ -454,12 +422,25 @@ async def guide(m: Message, state: FSMContext):
         "1️⃣ «💳 Hisobni to'ldirish» orqali balansni to'ldiring.\n"
         "2️⃣ «🛍 Buyurtma berish» da Stars, Gif yoki SMM xizmatini tanlang.\n"
         "3️⃣ Ma'lumotlarni kiriting, buyurtma qabul qilinadi.\n"
-        "4️⃣ «🛒 Buyurtmalar» da holatini kuzating.\n\n"
-        "Bekor qilish uchun /cancel yozing."
+        "4️⃣ «🛒 Buyurtmalar» da holatini kuzating."
     )
 
 
 # ---------------- Hisobni to'ldirish ----------------
+class TopupS(StatesGroup):
+    amount = State()
+
+
+class OrderS(StatesGroup):
+    manual = State()
+    target = State()
+
+
+class SmmOrderS(StatesGroup):
+    target = State()
+    quantity = State()
+
+
 @dp.message(F.text == "💳 Hisobni to'ldirish")
 async def topup_start(m: Message, state: FSMContext):
     ensure_user(m.from_user.id, m.from_user.full_name)
@@ -544,10 +525,8 @@ async def topup_admin(c: CallbackQuery):
         return await c.answer("Ruxsat yo'q", show_alert=True)
     action, tid = c.data.split(":")
     t = one("SELECT * FROM topups WHERE id=?", (int(tid),))
-    if not t:
-        return await c.answer("Topilmadi", show_alert=True)
-    if t["status"] != "checking":
-        return await c.answer("Bu so'rov allaqachon ko'rib chiqilgan.", show_alert=True)
+    if not t or t["status"] != "checking":
+        return await c.answer("Topilmadi yoki allaqachon ko'rib chiqilgan.", show_alert=True)
     if action == "tok":
         run("UPDATE topups SET status='approved' WHERE id=?", (t["id"],))
         run("UPDATE users SET balance=balance+? WHERE id=?", (t["amount"], t["user_id"]))
@@ -566,13 +545,13 @@ async def topup_admin(c: CallbackQuery):
         except Exception:
             pass
         try:
-            await bot.send_message(t["user_id"], "❌ To'lovingiz rad etildi. Muammo bo'lsa, admin bilan bog'laning.")
+            await bot.send_message(t["user_id"], "❌ To'lovingiz rad etildi.")
         except Exception:
             pass
     await c.answer()
 
 
-# ---------------- Stars / Gif buyurtma ----------------
+# ---------------- Stars / Gif ----------------
 @dp.callback_query(F.data == "buy:manual")
 async def buy_manual(c: CallbackQuery, state: FSMContext):
     await state.set_state(OrderS.manual)
@@ -606,16 +585,10 @@ async def manual_stars(m: Message, state: FSMContext):
 async def ask_target_for_item(msg: Message, state: FSMContext, uid: int, item_type: str, item_name: str, price: int):
     if get_balance(uid) < price:
         await state.clear()
-        return await msg.answer(
-            f"❗ Balans yetarli emas.\nKerak: <b>{fmt(price)} so'm</b>\nBalansingiz: <b>{fmt(get_balance(uid))} so'm</b>\n\n"
-            "«💳 Hisobni to'ldirish» orqali balansni to'ldiring."
-        )
+        return await msg.answer(f"❗ Balans yetarli emas. Kerak: {fmt(price)} so'm")
     await state.set_state(OrderS.target)
     await state.update_data(item_type=item_type, item_name=item_name, price=price)
-    await msg.answer(
-        f"📦 Tanlandi: <b>{esc(item_name)}</b>\n💰 Narxi: <b>{fmt(price)} so'm</b>\n\n"
-        "Qabul qiluvchi <b>@username</b> yoki <b>ID</b> ni kiriting:\n(Bekor qilish: /cancel)"
-    )
+    await msg.answer(f"📦 Tanlandi: <b>{esc(item_name)}</b>\n💰 Narxi: <b>{fmt(price)} so'm</b>\n\nQabul qiluvchi @username yoki ID ni kiriting:")
 
 
 @dp.message(OrderS.target, F.text)
@@ -626,8 +599,6 @@ async def order_target(m: Message, state: FSMContext):
     uid = m.from_user.id
     await state.clear()
 
-    if not data or price <= 0:
-        return await m.answer("❗ Xatolik, qaytadan urinib ko'ring.")
     if get_balance(uid) < price:
         return await m.answer("❗ Balans yetarli emas.")
 
@@ -636,9 +607,9 @@ async def order_target(m: Message, state: FSMContext):
         "INSERT INTO orders(user_id,item_type,item_name,price,target,status,created) VALUES(?,?,?,?,?,?,?)",
         (uid, data["item_type"], data["item_name"], price, target, "pending", int(time.time())),
     )
-    await m.answer(f"✅ Buyurtma #{oid} qabul qilindi! Tez orada bajariladi.")
+    await m.answer(f"✅ Buyurtma #{oid} qabul qilindi!")
     await notify_admins(
-        f"🛍 <b>Buyurtma #{oid}</b>\nBuyurtmachi: {esc(m.from_user.full_name)} (<code>{uid}</code>)\n"
+        f"🛍 <b>Buyurtma #{oid}</b>\nKimdan: {esc(m.from_user.full_name)} (<code>{uid}</code>)\n"
         f"Kimga: {esc(target)}\nMahsulot: {esc(data['item_name'])}\nSumma: {fmt(price)} so'm",
         order_admin_kb(oid),
     )
@@ -650,18 +621,16 @@ async def order_admin(c: CallbackQuery):
         return await c.answer("Ruxsat yo'q", show_alert=True)
     action, oid = c.data.split(":")
     o = one("SELECT * FROM orders WHERE id=?", (int(oid),))
-    if not o:
-        return await c.answer("Topilmadi", show_alert=True)
-    if o["status"] in ("done", "cancelled"):
-        return await c.answer("Bu buyurtma allaqachon yopilgan.", show_alert=True)
+    if not o or o["status"] in ("done", "cancelled"):
+        return await c.answer("Topilmadi yoki yopilgan.", show_alert=True)
     if action == "od":
         run("UPDATE orders SET status='done' WHERE id=?", (o["id"],))
-        note, user_msg = "✅ Bajarildi", f"✅ Buyurtma #{o['id']} bajarildi! Rahmat."
+        note, user_msg = "✅ Bajarildi", f"✅ Buyurtma #{o['id']} bajarildi!"
     else:
         run("UPDATE orders SET status='cancelled' WHERE id=?", (o["id"],))
         run("UPDATE users SET balance=balance+? WHERE id=?", (o["price"], o["user_id"]))
-        note = "❌ Bekor qilindi, pul qaytarildi"
-        user_msg = f"❌ Buyurtma #{o['id']} bekor qilindi. {fmt(o['price'])} so'm balansingizga qaytarildi."
+        note = "❌ Bekor qilindi"
+        user_msg = f"❌ Buyurtma #{o['id']} bekor qilindi, pulingiz qaytarildi."
     try:
         await c.message.edit_text(f"{c.message.html_text}\n\n<b>{note}</b>")
     except Exception:
@@ -696,11 +665,7 @@ async def smm_service_selected(c: CallbackQuery, state: FSMContext):
         min_qty=svc_info["min"], service_id=svc_info["service_id"],
     )
     await state.set_state(SmmOrderS.target)
-    text = (
-        f"🚀 <b>{esc(svc_info['name'])}</b>\n"
-        f"💰 Narx: 1000 ta = {fmt(svc_info['price_per_1000'])} so'm\n\n"
-        "🔗 Havolani (link) yuboring:\n(Bekor qilish: /cancel)"
-    )
+    text = f"🚀 <b>{esc(svc_info['name'])}</b>\n💰 Narx: 1000 ta = {fmt(svc_info['price_per_1000'])} so'm\n\n🔗 Havolani yuboring:"
     try:
         await c.message.edit_text(text)
     except Exception:
@@ -711,21 +676,11 @@ async def smm_service_selected(c: CallbackQuery, state: FSMContext):
 @dp.message(SmmOrderS.target, F.text)
 async def smm_target_received(m: Message, state: FSMContext):
     link = m.text.strip()
-    data = await state.get_data()
-    svc_key = data.get("smm_key", "")
-
-    is_instagram = "instagram.com" in link or "instagr.am" in link
-    is_telegram = "t.me/" in link or link.startswith("@")
-
-    if "_tg_" in svc_key and not is_telegram:
-        return await m.answer("❌ Telegram havolasi noto'g'ri kiritildi. Masalan: https://t.me/kanal/123")
-    if "_ig_" in svc_key and not is_instagram:
-        return await m.answer("❌ Instagram havolasi noto'g'ri kiritildi. Masalan: https://instagram.com/...")
     if link.startswith("@"):
         link = "https://t.me/" + link[1:]
-
     await state.update_data(target=link)
     await state.set_state(SmmOrderS.quantity)
+    data = await state.get_data()
     await m.answer(f"🔢 Soni qancha bo'lsin? (Minimal: {data['min_qty']} ta)")
 
 
@@ -737,28 +692,20 @@ async def smm_quantity_received(m: Message, state: FSMContext):
     data = await state.get_data()
 
     if qty < data["min_qty"]:
-        return await m.answer(f"❗ Minimal miqdor {data['min_qty']} tadan kam bo'lmasligi kerak.")
+        return await m.answer(f"❗ Minimal miqdor {data['min_qty']} ta.")
 
     total_price = int((qty / 1000) * data["price_1k"])
-    if total_price <= 0:
-        return await m.answer("❗ Miqdor juda kichik.")
     uid = m.from_user.id
 
     if get_balance(uid) < total_price:
         await state.clear()
-        return await m.answer(
-            f"❗ Balans yetarli emas.\nKerak: <b>{fmt(total_price)} so'm</b>\nBalansingiz: <b>{fmt(get_balance(uid))} so'm</b>"
-        )
+        return await m.answer(f"❗ Balans yetarli emas. Kerak: {fmt(total_price)} so'm")
 
     run("UPDATE users SET balance=balance-? WHERE id=?", (total_price, uid))
     api_res = await send_smm_order(data["service_id"], data["target"], qty)
 
     ok = isinstance(api_res, dict) and "order" in api_res
-    if ok:
-        status, panel_text = "processing", "🚀 Avtomatik yuborildi"
-    else:
-        status, panel_text = "pending", "⚠️ Panelga yuborishda xatolik (Admin tekshiradi)"
-        logging.error(f"SMM panel javobi: {api_res}")
+    status = "processing" if ok else "pending"
 
     item_name = f"{data['smm_name']} ({qty} ta)"
     oid = run(
@@ -766,95 +713,18 @@ async def smm_quantity_received(m: Message, state: FSMContext):
         (uid, "smm", item_name, total_price, data["target"], status, int(time.time())),
     )
     await state.clear()
-    await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nHolati: {panel_text}\nSumma: {fmt(total_price)} so'm")
-
-    if not ok:
-        err = esc(api_res.get("error", "")) if isinstance(api_res, dict) else "javob yo'q"
-        await notify_admins(
-            f"⚠️ <b>SMM buyurtma #{oid} panelga ketmadi!</b>\nSabab: {err}\n"
-            f"Foydalanuvchi: {esc(m.from_user.full_name)} (<code>{uid}</code>)\n"
-            f"{esc(item_name)}\nLink: {esc(data['target'])}\nSumma: {fmt(total_price)} so'm",
-            order_admin_kb(oid),
-        )
+    await m.answer(f"✅ <b>SMM Buyurtma #{oid} qabul qilindi!</b>\nSumma: {fmt(total_price)} so'm")
 
 
-# ---------------- Admin buyruqlari ----------------
-def is_admin(uid: int) -> bool:
-    return uid in ADMIN_IDS
-
-
-@dp.message(Command("admin"))
-async def admin_help(m: Message):
-    if not is_admin(m.from_user.id):
-        return
-    await m.answer(
-        "🛠 <b>Admin buyruqlari</b>\n\n"
-        "/stats — statistika\n"
-        "/addbalance <code>ID SUMMA</code> — balans qo'shish\n"
-        "/broadcast <code>MATN</code> — hammaga xabar yuborish"
-    )
-
-
-@dp.message(Command("stats"))
-async def admin_stats(m: Message):
-    if not is_admin(m.from_user.id):
-        return
-    users = one("SELECT COUNT(*) c FROM users")["c"]
-    orders = one("SELECT COUNT(*) c FROM orders")["c"]
-    pend = one("SELECT COUNT(*) c FROM orders WHERE status='pending'")["c"]
-    top = one("SELECT COALESCE(SUM(amount),0) s FROM topups WHERE status='approved'")["s"]
-    await m.answer(
-        f"📊 <b>Statistika</b>\n\n👥 Foydalanuvchilar: {users}\n🛒 Buyurtmalar: {orders}\n"
-        f"⏳ Kutilayotgan: {pend}\n💰 Jami to'ldirilgan: {fmt(top)} so'm"
-    )
-
-
-@dp.message(Command("addbalance"))
-async def admin_addbalance(m: Message, command: CommandObject):
-    if not is_admin(m.from_user.id):
-        return
-    parts = (command.args or "").split()
-    if len(parts) != 2 or not parts[0].isdigit() or not re.fullmatch(r"-?\d+", parts[1]):
-        return await m.answer("Format: /addbalance ID SUMMA")
-    uid, amount = int(parts[0]), int(parts[1])
-    if not one("SELECT 1 FROM users WHERE id=?", (uid,)):
-        return await m.answer("❗ Bunday foydalanuvchi topilmadi.")
-    run("UPDATE users SET balance=balance+? WHERE id=?", (amount, uid))
-    await m.answer(f"✅ {uid} balansi {fmt(amount)} so'mga o'zgardi. Yangi balans: {fmt(get_balance(uid))} so'm")
-    try:
-        await bot.send_message(uid, f"💰 Balansingiz {fmt(amount)} so'mga o'zgartirildi.")
-    except Exception:
-        pass
-
-
-@dp.message(Command("broadcast"))
-async def admin_broadcast(m: Message, command: CommandObject):
-    if not is_admin(m.from_user.id):
-        return
-    text = command.args
-    if not text:
-        return await m.answer("Format: /broadcast MATN")
-    sent = failed = 0
-    for u in many("SELECT id FROM users"):
-        try:
-            await bot.send_message(u["id"], text, parse_mode=None)
-            sent += 1
-        except Exception:
-            failed += 1
-        await asyncio.sleep(0.05)
-    await m.answer(f"📣 Yuborildi: {sent}, yetmadi: {failed}")
-
-
-# ---------------- Groq (Llama) AI ----------------
+# ---------------- Groq AI (Xatolarsiz versiya) ----------------
 ai_hist = {}
 
 
 @dp.message(StateFilter(None), F.text, ~F.text.startswith("/"))
 async def chat_with_ai(message: Message):
     wait_msg = await message.answer("⏳ O'ylayapman...")
-    if not GROQ_API_KEY:
-        logging.error("GROQ kalit topilmadi (Render Environment'da yo'q)")
-        return await wait_msg.edit_text("❌ AI sozlanmagan (GROQ kalit yo'q).", parse_mode=None)
+    if not GROQ_API_KEY or not GROQ_API_KEY.startswith("gsk_"):
+        return await wait_msg.edit_text("❌ AI kaliti (GROQ_API_KEY) noto'g'ri yoki 'gsk_' bilan boshlanmagan!", parse_mode=None)
 
     uid = message.from_user.id
     hist = ai_hist.setdefault(uid, [])
@@ -865,7 +735,7 @@ async def chat_with_ai(message: Message):
         payload = {
             "model": GROQ_MODEL,
             "messages": [
-                {"role": "system", "content": "Siz foydalanuvchilarga yordam beradigan aqlli va muloyim Telegram yordamchisiz. O'zbek tilida javob bering."},
+                {"role": "system", "content": "Siz aqlli va muloyim yordamchisiz. O'zbek tilida javob bering."},
                 *hist,
             ],
         }
@@ -880,12 +750,10 @@ async def chat_with_ai(message: Message):
                 else:
                     hist.pop()
                     err_msg = res_json.get("error", {}).get("message", "Noma'lum xatolik")
-                    logging.error(f"Groq API error: {err_msg}")
                     await wait_msg.edit_text(f"❌ AI xatosi: {err_msg}", parse_mode=None)
     except Exception as e:
         if hist:
             hist.pop()
-        logging.error(f"AI Connection Error: {e}")
         await wait_msg.edit_text("❌ Sun'iy intellekt bilan bog'lanishda xatolik yuz berdi.", parse_mode=None)
 
 
