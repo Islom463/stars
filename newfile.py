@@ -517,8 +517,8 @@ async def chat_with_gemini(message: Message):
     del hist[:-6]
 
     try:
-        # Barqarorroq va yangi versiyadagi modelga o'zgartirildi
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # Eng barqaror ishlaydigan model versiyasiga o'zgartirildi
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": hist}
         
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
