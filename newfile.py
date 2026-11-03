@@ -301,6 +301,13 @@ async def process_check_sub(c: CallbackQuery):
         await c.answer("Siz hali barcha kanallarga obuna bo'lmadingiz!", show_alert=True)
 
 
+@dp.message(Command("join"))
+async def join_cmd(m: Message, state: FSMContext):
+    await state.clear()
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Rasmiy kanalga o'tish", url=GROUP_LINK)]])
+    await m.answer("📢 <b>Asosiy kanalimizga qo'shiling:</b>", reply_markup=kb)
+
+
 @dp.message(Command("help"))
 async def help_cmd(m: Message, state: FSMContext):
     await state.clear()
@@ -348,7 +355,6 @@ async def order_smm_cb(c: CallbackQuery):
     await c.answer()
 
 
-# --- BUYURTMA BERISH VA BALANS TEKSHIRISH ---
 class OrderState(StatesGroup):
     waiting_target = State()
 
@@ -465,7 +471,14 @@ async def help_text_btn(m: Message, state: FSMContext):
 @dp.message(F.text == "📄 Qo'llanma")
 async def guide(m: Message, state: FSMContext):
     await state.clear()
-    await m.answer("📄 Botdan foydalanish qo'llanmasi.")
+    guide_text = (
+        "📄 <b>Botdan foydalanish qo'llanmasi:</b>\n\n"
+        "1️⃣ <b>Hisobni to'ldirish:</b> «💳 Hisobni to'ldirish» tugmasini bosib, kerakli summani kiriting va ko'rsatilgan kartaga o'tkazma qiling.\n"
+        "2️⃣ <b>Buyurtma berish:</b> «🛍 Buyurtma berish» bo'limidan Telegram Stars, Sovg'a Giflar yoki SMM xizmatlarini tanlang.\n"
+        "3️⃣ <b>Pul ishlash:</b> «💵 Pul ishlash» orqali o'z taklif havolangizni do'stlaringizga ulashib bonuslarga ega bo'ling!"
+    )
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="📢 Asosiy kanal", url=GROUP_LINK)]])
+    await m.answer(guide_text, reply_markup=kb)
 
 
 class TopupS(StatesGroup):
@@ -489,7 +502,7 @@ async def topup_amount(m: Message, state: FSMContext):
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# --- GOOGLE GEMINI AI CHAT (Tezkor va optimallashtirilgan qism) ---
+# --- GOOGLE GEMINI AI CHAT ---
 ai_hist = {}
 
 @dp.message(StateFilter(None), F.text, ~F.text.startswith("/"))
@@ -501,13 +514,13 @@ async def chat_with_gemini(message: Message):
     uid = message.from_user.id
     hist = ai_hist.setdefault(uid, [])
     hist.append({"role": "user", "parts": [{"text": message.text}]})
-    del hist[:-6]  # Xotirani kichikroq saqlash tezlikni oshiradi
+    del hist[:-6]
 
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key={GEMINI_API_KEY}"
+        # Barqarorroq va yangi versiyadagi modelga o'zgartirildi
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
         payload = {"contents": hist}
         
-        # Timeout qisqartirildi, so'rov tezroq natija berishi uchun
         async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
             async with session.post(url, json=payload) as resp:
                 res_json = await resp.json(content_type=None)
