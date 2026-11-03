@@ -7,6 +7,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import threading
 import urllib.request
 import time
+import aiohttp
 import asyncio
 import logging
 import re
@@ -28,7 +29,6 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-import google.generativeai as genai
 
 logging.basicConfig(level=logging.INFO)
 
@@ -84,9 +84,6 @@ logging.info(
     "Kalitlar: BOT=%s GEMINI=%s SMM=%s",
     bool(BOT_TOKEN), bool(GEMINI_API_KEY), bool(SMM_API_KEY),
 )
-
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 
 def stop_with_error(msg: str):
@@ -505,28 +502,41 @@ async def topup_amount(m: Message, state: FSMContext):
     await m.answer(f"Karta: <code>{CARD_NUMBER}</code>\nSumma: {fmt(amount)} so'm")
 
 
-# --- GOOGLE GEMINI AI CHAT (Rasmiy SDK orqali xatolarsiz) ---
+# --- GOOGLE GEMINI AI CHAT (aiohttp orqali, qo'shimcha kutubxonasiz) ---
+ai_hist = {}
+
 @dp.message(StateFilter(None), F.text, ~F.text.startswith("/"))
 async def chat_with_gemini(message: Message):
     wait_msg = await message.answer("🤖 Sun'iy intellekt o'ylamoqda...")
     if not GEMINI_API_KEY:
         return await wait_msg.edit_text("❌ Gemini API kaliti topilmadi!", parse_mode=None)
 
+    uid = message.from_user.id
+    hist = ai_hist.setdefault(uid, [])
+    hist.append({"role": "user", "parts": [{"text": message.text}]})
+    del hist[:-6]
+
     try:
-        # Rasmiy SDK orqali gemini-1.5-flash modelidan foydalanish
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        # gemini-pro modeli v1beta orqali so'rov yuborish
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GEMINI_API_KEY}"
+        payload = {"contents": hist}
         
-        # Asinxron tarzda javob olish uchun to'g'ridan-to'g'ri chaqiruv
-        response = await asyncio.to_thread(model.generate_content, message.text)
-        
-        if response and response.text:
-            answer = response.text[:4000]
-            await wait_msg.edit_text(answer, parse_mode=None)
-        else:
-            await wait_msg.edit_text("❌ AI javob bera olmadi, iltimos qaytadan urinib ko'ring.", parse_mode=None)
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
+            async with session.post(url, json=payload) as resp:
+                res_json = await resp.json(content_type=None)
+                if resp.status == 200 and "candidates" in res_json:
+                    answer = res_json["candidates"][0]["content"]["parts"][0]["text"][:4000]
+                    hist.append({"role": "model", "parts": [{"text": answer}]})
+                    del hist[:-6]
+                    await wait_msg.edit_text(answer, parse_mode=None)
+                else:
+                    hist.pop()
+                    err_msg = res_json.get("error", {}).get("message", "Juda ko'p yuklama, birozdan keyin urinib ko'ring")
+                    await wait_msg.edit_text(f"❌ AI javob berolmadi: {err_msg}", parse_mode=None)
     except Exception as e:
-        logging.error(f"Gemini AI xatosi: {e}")
-        await wait_msg.edit_text("⚡ Tarmoqda vaqtinchalik kechikish yoki kalit xatosi, iltimos keyinroq urinib ko'ring.", parse_mode=None)
+        if hist:
+            hist.pop()
+        await wait_msg.edit_text("⚡ Tarmoqda vaqtinchalik kechikish, iltimos qaytadan yozing.", parse_mode=None)
 
 
 async def main():
