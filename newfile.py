@@ -124,7 +124,7 @@ if not BOT_TOKEN:
 
 # ---------------- Sozlamalar ----------------
 ADMIN_IDS = [8099636943]
-ADMIN_USERNAME = "wezzcs"
+ADMIN_USERNAME = "apexservis_support"
 CARD_NUMBER = "5614681853951071"
 CARD_OWNER = "Panjiyev Muhammadali"
 REF_BONUS = 50
